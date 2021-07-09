@@ -1,18 +1,18 @@
-
-SRCS=training.cpp
-
-FLAGS=-Wextra -Wall -Werror -std=c++98
-
 NAME=webserv
 
-$(NAME):$(SRCS)
-	clang++ $(FLAGS) $(SRCS) -o $(NAME)
+SRC=Socket.cpp Message.cpp Request.cpp webserv.cpp Response.cpp Mimetypes.cpp
+
+SRC:=$(addprefix src/,$(SRC))
+
+FLAGS=-Wall -Wextra -Werror
 
 all: $(NAME)
 
-re: fclean $(NAME)
+
+$(NAME):$(SRC)
+	@clang++ --std=c++98 $(SRC) -o $(NAME) -Iinclude
 
 clean:
-	rm -rf $(NAME)
+	@rm -rf $(NAME)
 
-fclean: clean
+re: clean all
