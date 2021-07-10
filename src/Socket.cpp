@@ -106,6 +106,13 @@ std::string Socket::receive() const {
     return message;
 }
 
+void Socket::send(std::vector<char> vec) const {
+    int bytes = ::send(_fd, vec.data(), vec.size(), 0);
+    if (bytes == -1) {
+        error("Failed to send response");
+    }
+}
+
 void Socket::send(std::string message) const {
     int bytes = ::send(_fd, message.c_str(), message.length(), 0);
 
@@ -113,7 +120,6 @@ void Socket::send(std::string message) const {
         error("Failed to send response");
     }
 }
-
 
 void Socket::error(std::string message) const {
 	std::cerr << message << ". " << std::strerror(errno) << std::endl;

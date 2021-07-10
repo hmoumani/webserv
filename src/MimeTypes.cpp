@@ -67,7 +67,7 @@ int MimeTypes::strcmpi(const char *s1, const char *s2) {
 }
 
 // Source: https://raw.githubusercontent.com/broofa/node-mime/master/types/standard.json
-MimeTypes::entry MimeTypes::types[347] =  {
+MimeTypes::entry MimeTypes::types[348] =  {
   {"*3gpp", "audio/3gpp"},
   {"*jpm", "video/jpm"},
   {"*mp3", "audio/mp3"},
@@ -164,6 +164,7 @@ MimeTypes::entry MimeTypes::types[347] =  {
   {"hqx", "application/mac-binhex40"},
   {"htm", "text/html"},
   {"html", "text/html"},
+  {"ico", "image/x-icon"},
   {"ics", "text/calendar"},
   {"ief", "image/ief"},
   {"ifb", "text/calendar"},

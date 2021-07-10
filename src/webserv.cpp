@@ -106,7 +106,6 @@ int main() {
 						// connection.send(response);
 
 						Response response(request);
-						std::cerr << response.HeadertoString() << std::endl;
 						connection.send(response.HeadertoString());
 						response.send_file(request, connection);
 

@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <cstring>
 #include <stdlib.h>
+#include <vector>
 
 #define BUFFER_SIZE 128
 
@@ -40,6 +41,7 @@ public:
     Socket accept() const;
     std::string receive() const;
     void send(std::string message) const;
+    void send(std::vector<char> vec) const;
 
 };
 

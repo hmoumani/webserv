@@ -1,0 +1,4 @@
+*.out
+webserv*
+.vscode
+docker
