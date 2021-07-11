@@ -15,4 +15,6 @@ $(NAME):$(SRC)
 clean:
 	@rm -rf $(NAME)
 
+fclean:clean
+
 re: clean all

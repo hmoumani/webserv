@@ -31,6 +31,7 @@ static const std::string mon_name[12] = {
 	"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 	"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 };
+void error(std::string message);
 #include "Response.hpp"
 #include "Utils.hpp"
 // int sockfd;

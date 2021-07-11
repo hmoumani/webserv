@@ -122,7 +122,7 @@ void Socket::send(std::string message) const {
 }
 
 void Socket::error(std::string message) const {
-	std::cerr << message << ". " << std::strerror(errno) << std::endl;
+	std::cerr << message << ". " << std::strerror(errno)  << ". " << errno << std::endl;
 	close();
 	return exit(EXIT_FAILURE);
 }

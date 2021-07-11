@@ -4,7 +4,7 @@ Socket sock;
 socklen_t addrlen = sizeof(sock.getAddress());
 
 void error(std::string message) {
-	std::cerr << message << ". " << std::strerror(errno) << std::endl;
+	std::cerr << message << ". " << std::strerror(errno) << ". " << errno << std::endl;
 	sock.close();
 	return exit(EXIT_FAILURE);
 }
@@ -72,7 +72,6 @@ int main() {
 
 				do {	
 					new_connection = sock.accept();
-
 					if (new_connection.getFD() != -1) {
 						fds.push_back((pollfd){new_connection.getFD(), POLLIN | POLLOUT});
 					}
@@ -84,6 +83,7 @@ int main() {
 				Socket connection;
 
 				connection.setFD(fds[i].fd);
+				// connection.setState(NonBlockingSocket);
 
 				if (fds[i].revents & POLLIN) {
 
