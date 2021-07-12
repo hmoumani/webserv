@@ -10,6 +10,7 @@
 #include <cstring>
 #include <stdlib.h>
 #include <vector>
+#include "Buffer.hpp"
 
 #define BUFFER_SIZE 128
 
@@ -40,8 +41,8 @@ public:
     void error(std::string message) const;
     Socket accept() const;
     std::string receive() const;
-    void send(std::string message) const;
-    void send(std::vector<char> vec) const;
+    void send(Buffer & buffer) const;
+    // void send(std::vector<char> vec) const;
 
 };
 

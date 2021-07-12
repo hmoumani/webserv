@@ -42,12 +42,18 @@ void setup_server() {
 	sock.listen(10);
 }
 
+void handle_signal(int sig) {
+	std::cout << "SIGNAL " << sig << std::endl;
+}
 int main() {
 
 	setup_server();
 
 	std::vector<pollfd> fds;
-
+	std::map<int, Response*> responses;
+	// for (int i = 1; i < 31; ++i) {
+	signal(13, handle_signal);
+	// }
 	fds.push_back((pollfd){sock.getFD(), POLLIN});
 
 	while (true) {
@@ -66,6 +72,7 @@ int main() {
 			if (fds[i].revents == 0) {
 				continue;
 			}
+			std::cerr << "CONNECTION: " << i << std::endl;
 			// new connection
 			if (fds[i].fd == sock.getFD()) {
 				Socket new_connection;
@@ -73,7 +80,7 @@ int main() {
 				do {	
 					new_connection = sock.accept();
 					if (new_connection.getFD() != -1) {
-						fds.push_back((pollfd){new_connection.getFD(), POLLIN | POLLOUT});
+						fds.push_back((pollfd){new_connection.getFD(), POLLIN});
 					}
 
 				} while (new_connection.getFD() != -1);
@@ -83,38 +90,43 @@ int main() {
 				Socket connection;
 
 				connection.setFD(fds[i].fd);
-				// connection.setState(NonBlockingSocket);
 
 				if (fds[i].revents & POLLIN) {
 
-					std::string request = connection.receive();
+					std::string message = connection.receive();
 
+					Request request(message);
 					try {
-						Request message(request);
+						Response * response = new Response(request);
+	
+						std::string str = response->HeadertoString();
+
+						response->buffer.setData(str.c_str(), str.length());
+						
+						responses.insert(std::make_pair(connection.getFD(), response));
+
+						fds[i].events = POLLOUT;
 					} catch(const StatusCodeException & e) {
 						std::cerr << e.getStatusCode() << " - " << e.what() << '\n';
 					}
-					
-					// std::cout << request << "\n";
-					if (fds[i].revents & POLLOUT) {
-						// Send a message to the connection
-					
-						// std::string response1 = getResponse(request);
-						// std::cerr << response1 << std::endl;
-
-						// // std::cout << response << std::endl;
-						// connection.send(response);
-
-						Response response(request);
-						connection.send(response.HeadertoString());
-						response.send_file(request, connection);
-
-					}
-					connection.close();
-					fds.erase(fds.begin() + i);
 				}
+				if (fds[i].revents & POLLOUT) {
+					
+					Response * response = responses.find(connection.getFD())->second;
+					
+					if (response->buffer.length() == 0) {
+						response->readFile();
+					}
 
+					connection.send(response->buffer);
 
+					if (!response->getFile() && response->buffer.length() == 0) {
+						connection.close();
+						fds.erase(fds.begin() + i);
+						responses.erase(connection.getFD());
+						delete response;
+					}
+				}
 			}
 		}
 	}

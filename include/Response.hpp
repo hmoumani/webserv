@@ -2,13 +2,16 @@
 # define RESPONSE_HPP
 # include "StatusCode.hpp"
 # include "webserv.hpp"
+# include "Buffer.hpp"
 
 class Response : public Message
 {
     private:
         HttpStatus::StatusCode status;
-        struct stat buffer;
+        std::ifstream file;
+        struct stat fileStat;
     public:
+        Buffer buffer;
         Response();
         Response(Response const &);
         Response(Request const &);
@@ -18,7 +21,10 @@ class Response : public Message
         void handlePostRequest(Request const &);
         void handleDeleteRequest(Request const &);
         std::string HeadertoString() const;
-        void    send_file(Request const & req, Socket & connection);
+        void    send_file(Socket & connection);
+        void    readFile();
+        const std::ifstream & getFile() const;
+
 };
 
 #endif

@@ -1,4 +1,6 @@
-*.out
-webserv*
-.vscode
-docker
+*
+
+!.gitignore
+!src/*.cpp
+!include/*.hpp
+!Makefile

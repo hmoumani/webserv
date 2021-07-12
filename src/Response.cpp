@@ -13,7 +13,7 @@ Response::~Response(){}
 
 Response &Response::operator=(Response const & src)
 {
-	(void)src;
+	buffer = src.buffer;
 	return (*this);
 }
 
@@ -29,18 +29,25 @@ Response::Response(Request const & req) : status(HttpStatus::StatusCode(200))
 
 void Response::handleGetRequest(Request const & req)
 {
+
 	std::string filename = req.getRequestTarget().substr(1);
 	std::ostringstream oss("");
 
-	stat (filename.c_str(), &this->buffer);
-	Utils::fileStat(filename, buffer);
-	oss << this->buffer.st_size;
+	file.open(filename);
+
+	stat (filename.c_str(), &this->fileStat);
+	Utils::fileStat(filename, fileStat);
+	oss << this->fileStat.st_size;
+	std::cerr << "SIZE: " <<  this->fileStat.st_size << std::endl;
+	std::cerr << "FILE: " <<  filename.c_str() << std::endl;
 	insert_header("Content-Length", oss.str());
 	insert_header("Date", Utils::getDate());
 	insert_header("Server", SERVER_NAME);
-	insert_header("Last-Modified", Utils::time_last_modification(this->buffer));
+	insert_header("Last-Modified", Utils::time_last_modification(this->fileStat));
 	// insert_header("Transfer-Encoding", "chunked");
-	insert_header("Content-Type", MimeTypes::getType(filename.c_str()));
+	const char * type = MimeTypes::getType(filename.c_str());
+	type = type ? type : "text/plain";
+	insert_header("Content-Type", type);
 	insert_header("Connection", "keep-alive");
 	insert_header("Accept-Ranges", "bytes");
 
@@ -69,70 +76,38 @@ std::string Response::HeadertoString() const
 	return (response.str());
 }
 
-void    Response::send_file(Request const & req, Socket & connection)
-{
-	std::ostringstream oss("");
-	// std::string line;
-	// // std::cout << req.getRequestTarget() << "\n";
-	// std::ifstream file(req.getRequestTarget().substr(1));
-	// const int SIZE = 5120;
-	// std::vector<char> buffer (SIZE, 0);
-
-	// while(1)
-	// {
-	// 	file.read(buffer.data(), SIZE);
-	// 	connection.send(oss.str());
-	// 	std::streamsize s = ((file) ? SIZE : file.gcount());
-	// 	oss << std::hex << s << CRLF;
-	// 	oss.str("");
-	// 	// oss << buffer << CRLF;
-	// 	// connection.send(buffer);
-	// 	// std::cout << "lol\n";
-	// 	if (::send(connection.getFD(), buffer.data(), s, 0) == -1 && errno != EAGAIN)
-    //     	error("Failed to send response");
-	// 	// std::cout << "lol1\n";
-	// 	connection.send(CRLF);
-	// 	// std::cout << "lol2\n";
-	// 	// oss.str("");
-	// 	if(!file) break;
-	// }
-
-	// // oss.str("");
-	// // oss << s;
-	// // std::cerr << "***" <<oss.str() << std::endl;
-	// // insert_header("Content-Length", oss.str());
-	// oss << "0" << CRLF << CRLF;
-	// connection.send(oss.str());
-
-	// std::string head = HeadertoString();
-	// // std::cout << head << std::endl;
-	// // connection.send(head);
-	// // connection.send(buffer);
-
-
-	std::ifstream file(req.getRequestTarget().substr(1));
-	const int SIZE = buffer.st_size;
-	std::vector<char> buffer (SIZE, 0);
-	// std::ostringstream oss("");
-	// oss << this->buffer.st_size;
-	
-
-	while (1)
-	{
-		ssize_t sent = 0;
-		ssize_t temp = 0;
-		file.read(buffer.data(), SIZE);
-		std::streamsize s = ((file) ? SIZE : file.gcount());
-		// oss << s << std::endl;
-		// std::cerr << oss.str();
-		// oss.str("");
-		while (sent < s)
-		{
-			temp = ::send(connection.getFD(), buffer.data() + sent, s - sent, 0);
-			sent += temp == -1 ? 0 : temp;
-			std::cerr << sent << "\n";
-		}
-         	// error("Failed to send response");
-		if(!file) break;
-	}
+const std::ifstream & Response::getFile() const {
+	return file;
 }
+
+void    Response::send_file(Socket & connection)
+{
+	const int SIZE = 2;
+	char buff[SIZE];	
+
+	ssize_t sent = 0;
+	ssize_t temp = 0;
+	file.read(buff, SIZE);
+	std::streamsize s = ((file) ? SIZE : file.gcount());
+
+	int ret = ::send(connection.getFD(), buff, s, 0);
+
+	if (ret != -1) {
+		std::streampos lost = s - ret;
+		file.seekg(file.tellg() - lost);
+	}
+
+	std::cerr << ret << "\n";
+}
+
+void    Response::readFile() {
+
+	buffer.resize(1024);
+	file.read(buffer.data, buffer.size);
+	std::streamsize s = ((file) ? buffer.size : file.gcount());
+	buffer.resize(s);
+}
+
+// bool send_buffer(Socket & connection) {
+// 	connection.send()
+// }

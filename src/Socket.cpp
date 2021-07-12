@@ -75,7 +75,7 @@ const sockaddr_in & Socket::getAddress() const {
 
 void Socket::close() const {
     if (_fd != -1) {
-        std::cout << "Close Socket" << std::endl;
+        // std::cout << "Close Socket" << std::endl;
         ::close(_fd);
     }
 }
@@ -106,18 +106,19 @@ std::string Socket::receive() const {
     return message;
 }
 
-void Socket::send(std::vector<char> vec) const {
-    int bytes = ::send(_fd, vec.data(), vec.size(), 0);
-    if (bytes == -1) {
-        error("Failed to send response");
-    }
-}
+// void Socket::send(std::vector<char> vec) const {
+//     int bytes = ::send(_fd, vec.data(), vec.size(), 0);
+//     if (bytes == -1) {
+//         error("Failed to send response");
+//     }
+// }
 
-void Socket::send(std::string message) const {
-    int bytes = ::send(_fd, message.c_str(), message.length(), 0);
-
-    if (bytes == -1) {
-        error("Failed to send response");
+void Socket::send(Buffer & buffer) const {
+    // std::cerr << "BEFORE: " << buffer.length()  << std::endl;
+    int bytes = ::send(_fd, buffer.data, buffer.length(), 0);
+    // std::cerr << "SENT: " << bytes << std::endl;
+    if (bytes != -1) {
+        buffer.pos += bytes;
     }
 }
 
