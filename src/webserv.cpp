@@ -72,7 +72,8 @@ int main() {
 			if (fds[i].revents == 0) {
 				continue;
 			}
-			std::cerr << "CONNECTION: " << i << std::endl;
+			if (fds[i].revents != 4)
+				std::cerr << "CONNECTION: " << i << " " << fds[i].revents << std::endl;
 			// new connection
 			if (fds[i].fd == sock.getFD()) {
 				Socket new_connection;
@@ -88,7 +89,8 @@ int main() {
 			} else {
 
 				Socket connection;
-
+				bool close = false;
+				Response * response;
 				connection.setFD(fds[i].fd);
 
 				if (fds[i].revents & POLLIN) {
@@ -97,35 +99,56 @@ int main() {
 
 					Request request(message);
 					try {
-						Response * response = new Response(request);
+						response = new Response(request);
 	
+						
 						std::string str = response->HeadertoString();
 
+						responses.insert(std::make_pair(connection.getFD(), response));
+						
 						response->buffer.setData(str.c_str(), str.length());
 						
-						responses.insert(std::make_pair(connection.getFD(), response));
 
 						fds[i].events = POLLOUT;
 					} catch(const StatusCodeException & e) {
 						std::cerr << e.getStatusCode() << " - " << e.what() << '\n';
+
+						response = new Response();
+
+						std::cerr << response->getFile().is_open() << std::endl;
+						std::string data = errorPage(e.getStatusCode());
+						response->buffer.setData(data.c_str(), data.length());
+						std::cout << data << std::endl;
+						responses.insert(std::make_pair(connection.getFD(), response));
+						fds[i].events = POLLOUT;
 					}
 				}
+
+				response = responses.find(connection.getFD())->second;
+
 				if (fds[i].revents & POLLOUT) {
 					
-					Response * response = responses.find(connection.getFD())->second;
 					
-					if (response->buffer.length() == 0) {
+					if (response->buffer.length() == 0 && response->getFile().is_open()) {
 						response->readFile();
 					}
 
 					connection.send(response->buffer);
 
-					if (!response->getFile() && response->buffer.length() == 0) {
-						connection.close();
-						fds.erase(fds.begin() + i);
-						responses.erase(connection.getFD());
-						delete response;
+					if ((!response->getFile().is_open() || (response->getFile().is_open() && !response->getFile())) && response->buffer.length() == 0) {
+						close = true;
 					}
+				}
+				if (fds[i].revents & POLLHUP) {
+					close = true;
+				}
+				if (close) {
+					connection.close();
+					fds.erase(fds.begin() + i);
+					--i;
+					--curr_size;
+					responses.erase(connection.getFD());
+					delete response;
 				}
 			}
 		}

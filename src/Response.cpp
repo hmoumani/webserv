@@ -108,6 +108,32 @@ void    Response::readFile() {
 	buffer.resize(s);
 }
 
+std::string errorPage(HttpStatus::StatusCode code) {
+	std::ostringstream body("");
+	
+
+	body << "HTTP/1.1 " << code << " " << reasonPhrase(code) << CRLF;
+	body << "Connection: keep-alive" << CRLF;
+	body << "Content-Type: text/html" << CRLF;
+	body << "Date: " << Utils::getDate() <<  CRLF;
+	body << "Server: " << SERVER_NAME << CRLF << CRLF;
+
+
+
+	body << "<!DOCTYPE html>\n" ;
+	body << "<html lang=\"en\">\n";
+	body << "<head>\n";
+    body << "<title>" << code << "</title>\n";
+	body << "</head>\n";
+	body << "<body>\n";
+    body << "<h1 style=\"text-align:center\">" << code << " - " << HttpStatus::reasonPhrase(code) << "</h1>\n";
+	body << "<hr>\n";
+	body << "<h4 style=\"text-align:center\">WebServer</h4>\n";
+	body << "</body>\n";
+
+	return body.str();
+}
+
 // bool send_buffer(Socket & connection) {
 // 	connection.send()
 // }

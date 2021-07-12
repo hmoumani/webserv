@@ -27,4 +27,5 @@ class Response : public Message
 
 };
 
+std::string errorPage(HttpStatus::StatusCode code);
 #endif
