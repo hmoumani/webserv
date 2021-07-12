@@ -1,6 +1,8 @@
-*
+/**
 
 !.gitignore
-!src/*.cpp
-!include/*.hpp
+!/src/
+!/src/*.cpp
+!/include/
+!/include/*.hpp
 !Makefile
