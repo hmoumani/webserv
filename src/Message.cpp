@@ -55,9 +55,18 @@ Message::~Message() {
 const std::string & Message::getStartLine() const { return this->_start_line; }
 const std::unordered_map<std::string, std::string> & Message::getHeader() const { return this->_headers; }
 const std::string & Message::getBody() const { return this->_body; };
-const std::string & Message::getHeader(const std::string & key) const { return this->_headers.find(key)->second; }
+const std::string Message::getHeader(const std::string & key) const
+{
+    std::unordered_map<std::string, std::string>::const_iterator it =  this->_headers.find(key);
+    if (it == _headers.end())
+        return ("");
+    return it->second;
+}
 
 void Message::insert_header(std::string const & key, std::string const & val)
 {
     this->_headers.insert(std::pair<std::string, std::string>(key, val));
 }
+
+
+

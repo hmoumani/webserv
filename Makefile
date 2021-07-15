@@ -10,7 +10,7 @@ all: $(NAME)
 
 
 $(NAME):$(SRC)
-	clang++ -g -fsanitize=address --std=c++98 $(SRC) -o $(NAME) -Iinclude
+	clang++ -g  --std=c++98 $(SRC) -o $(NAME) -Iinclude
 
 clean:
 	@rm -rf $(NAME)

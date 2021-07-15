@@ -27,19 +27,58 @@ Response::Response(Request const & req) : status(HttpStatus::StatusCode(200))
 		this->handleDeleteRequest(req);
 }
 
+std::string Response::getIndexFile(std::string filename)
+{
+	std::string index[2] = {"index.html", "houssam.html"};
+
+	filename = filename == "." ? "": filename;
+
+	for (int i = 0; i < 2; ++i)
+	{
+		std::cout << "in for loop :" << (filename + index[i])  << std::endl;
+		if (access((filename + index[i]).c_str(), F_OK))
+			continue ;
+		struct stat buffer;
+		stat ((filename + index[i]).c_str(), &buffer);
+		if (!(buffer.st_mode & S_IROTH))
+			throw StatusCodeException(HttpStatus::Forbidden);
+		else
+			return (filename + index[i]);
+	}
+	throw StatusCodeException(HttpStatus::Forbidden); 
+}
+
 void Response::handleGetRequest(Request const & req)
 {
 
 	std::string filename = req.getRequestTarget().substr(1);
+	filename = filename == "" ? ".": filename;
 	std::ostringstream oss("");
 
+	// this->basePath = Utils::getFilePath(req.getRequestTarget().substr(1));
+	// std::cout << "*" << basePath << "*" << std::endl;
 	file.open(filename);
-
 	stat (filename.c_str(), &this->fileStat);
+	std::cerr << "filename: " << filename << std::endl;
 	Utils::fileStat(filename, fileStat);
+	std::cerr << "route : "<< Utils::getRoute(req.getHeader("Referer")) << std::endl;
+	if (S_ISDIR(fileStat.st_mode) && filename[filename.length() - 1] != '/' && filename != ".")
+	{
+		throw StatusCodeException(HttpStatus::MovedPermanently); 
+	}
+	if (S_ISDIR(fileStat.st_mode))
+	{
+		filename = getIndexFile(filename);
+		// std::cerr <<"filename: *" <<  filename <<"*" << std::endl;
+		file.close();
+		file.open(filename);
+		stat (filename.c_str(), &this->fileStat);
+		// oss.str("");
+		// oss << this->fileStat.st_size;
+	}
 	oss << this->fileStat.st_size;
-	std::cerr << "SIZE: " <<  this->fileStat.st_size << std::endl;
-	std::cerr << "FILE: " <<  filename.c_str() << std::endl;
+	// std::cerr << "SIZE: " <<  this->fileStat.st_size << std::endl;
+	// std::cerr << "FILE: " <<  filename.c_str() << std::endl;
 	insert_header("Content-Length", oss.str());
 	insert_header("Date", Utils::getDate());
 	insert_header("Server", SERVER_NAME);
@@ -97,7 +136,7 @@ void    Response::send_file(Socket & connection)
 		file.seekg(file.tellg() - lost);
 	}
 
-	std::cerr << ret << "\n";
+	// std::cerr << ret << "\n";
 }
 
 void    Response::readFile() {

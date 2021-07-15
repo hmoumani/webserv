@@ -72,8 +72,8 @@ int main() {
 			if (fds[i].revents == 0) {
 				continue;
 			}
-			if (fds[i].revents != 4)
-				std::cerr << "CONNECTION: " << i << " " << fds[i].revents << std::endl;
+			// if (fds[i].revents != 4)
+			// 	std::cerr << "CONNECTION: " << i << " " << fds[i].revents << std::endl;
 			// new connection
 			if (fds[i].fd == sock.getFD()) {
 				Socket new_connection;
@@ -100,7 +100,6 @@ int main() {
 					Request request(message);
 					try {
 						response = new Response(request);
-	
 						
 						std::string str = response->HeadertoString();
 
@@ -111,14 +110,14 @@ int main() {
 
 						fds[i].events = POLLOUT;
 					} catch(const StatusCodeException & e) {
-						std::cerr << e.getStatusCode() << " - " << e.what() << '\n';
+						// std::cerr << e.getStatusCode() << " - " << e.what() << '\n';
 
 						response = new Response();
 
-						std::cerr << response->getFile().is_open() << std::endl;
+						// std::cerr << response->getFile().is_open() << std::endl;
 						std::string data = errorPage(e.getStatusCode());
 						response->buffer.setData(data.c_str(), data.length());
-						std::cout << data << std::endl;
+						// std::cout << data << std::endl;
 						responses.insert(std::make_pair(connection.getFD(), response));
 						fds[i].events = POLLOUT;
 					}

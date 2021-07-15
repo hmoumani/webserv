@@ -62,8 +62,9 @@ namespace Utils {
 		// stat (filename.c_str(), &buffer);
 		if (!(buffer.st_mode & S_IROTH))
 			throw StatusCodeException(HttpStatus::Forbidden);
-		if (access( filename.c_str(), F_OK))
+		if (access( filename.c_str(), F_OK)){
 			throw StatusCodeException(HttpStatus::NotFound);
+		}
 	}
 
 	inline std::string	time_last_modification(struct stat buffer)
@@ -99,6 +100,28 @@ namespace Utils {
 			<< mon_name[ltm->tm_mon] << " " << (ltm->tm_year + 1900) << " " 
 			<< (ltm->tm_hour) % 24 << ":" << ltm->tm_min << ":" << ltm->tm_sec << " GMT";
 		return date.str();
+	}
+
+	inline int findNthOccur(std::string const & str, char ch, int N)
+	{
+		int occur = 0;
+
+		for (int i = 0; i < str.length(); i++) {
+			if (str[i] == ch) {
+				occur += 1;
+			}
+			if (occur == N)
+				return i;
+		}
+		return -1;
+	}
+
+	inline std::string getRoute(std::string const & str)
+	{
+		int pos = findNthOccur(str, '/', 3);
+		if (pos == -1)
+			return ("");
+		return str.substr(pos);
 	}
 }
 

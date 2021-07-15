@@ -4,12 +4,14 @@
 # include "webserv.hpp"
 # include "Buffer.hpp"
 
+
 class Response : public Message
 {
     private:
         HttpStatus::StatusCode status;
         std::ifstream file;
         struct stat fileStat;
+        std::string basePath;
     public:
         Buffer buffer;
         Response();
@@ -24,6 +26,7 @@ class Response : public Message
         void    send_file(Socket & connection);
         void    readFile();
         const std::ifstream & getFile() const;
+        std::string getIndexFile(std::string);
 
 };
 
