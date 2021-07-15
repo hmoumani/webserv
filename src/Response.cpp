@@ -64,7 +64,7 @@ void Response::handleGetRequest(Request const & req)
 	std::cerr << "route : "<< Utils::getRoute(req.getHeader("Referer")) << std::endl;
 	if (S_ISDIR(fileStat.st_mode) && filename[filename.length() - 1] != '/' && filename != ".")
 	{
-		throw StatusCodeException(HttpStatus::MovedPermanently); 
+		throw StatusCodeException(HttpStatus::MovedPermanently, '/' + filename + '/'); 
 	}
 	if (S_ISDIR(fileStat.st_mode))
 	{
@@ -147,13 +147,17 @@ void    Response::readFile() {
 	buffer.resize(s);
 }
 
-std::string errorPage(HttpStatus::StatusCode code) {
+std::string errorPage(const StatusCodeException & e) {
 	std::ostringstream body("");
 	
 
-	body << "HTTP/1.1 " << code << " " << reasonPhrase(code) << CRLF;
+	body << "HTTP/1.1 " << e.getStatusCode() << " " << reasonPhrase(e.getStatusCode()) << CRLF;
 	body << "Connection: keep-alive" << CRLF;
 	body << "Content-Type: text/html" << CRLF;
+	if (e.getLocation() != ""){
+		body << "Location: " << e.getLocation() <<  CRLF;
+		std::cerr << "Location: " << e.getLocation() <<  CRLF;
+	}
 	body << "Date: " << Utils::getDate() <<  CRLF;
 	body << "Server: " << SERVER_NAME << CRLF << CRLF;
 
@@ -162,10 +166,10 @@ std::string errorPage(HttpStatus::StatusCode code) {
 	body << "<!DOCTYPE html>\n" ;
 	body << "<html lang=\"en\">\n";
 	body << "<head>\n";
-    body << "<title>" << code << "</title>\n";
+    body << "<title>" << e.getStatusCode() << "</title>\n";
 	body << "</head>\n";
 	body << "<body>\n";
-    body << "<h1 style=\"text-align:center\">" << code << " - " << HttpStatus::reasonPhrase(code) << "</h1>\n";
+    body << "<h1 style=\"text-align:center\">" << e.getStatusCode() << " - " << HttpStatus::reasonPhrase(e.getStatusCode()) << "</h1>\n";
 	body << "<hr>\n";
 	body << "<h4 style=\"text-align:center\">WebServer</h4>\n";
 	body << "</body>\n";

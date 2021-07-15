@@ -30,5 +30,5 @@ class Response : public Message
 
 };
 
-std::string errorPage(HttpStatus::StatusCode code);
+std::string errorPage(const StatusCodeException & e);
 #endif

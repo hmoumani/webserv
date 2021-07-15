@@ -60,11 +60,11 @@ namespace Utils {
 	{
 		// struct stat buffer;   
 		// stat (filename.c_str(), &buffer);
-		if (!(buffer.st_mode & S_IROTH))
-			throw StatusCodeException(HttpStatus::Forbidden);
 		if (access( filename.c_str(), F_OK)){
 			throw StatusCodeException(HttpStatus::NotFound);
 		}
+		if (!(buffer.st_mode & S_IROTH))
+			throw StatusCodeException(HttpStatus::Forbidden);
 	}
 
 	inline std::string	time_last_modification(struct stat buffer)

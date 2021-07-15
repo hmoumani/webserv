@@ -107,7 +107,6 @@ int main() {
 						
 						response->buffer.setData(str.c_str(), str.length());
 						
-
 						fds[i].events = POLLOUT;
 					} catch(const StatusCodeException & e) {
 						// std::cerr << e.getStatusCode() << " - " << e.what() << '\n';
@@ -115,7 +114,7 @@ int main() {
 						response = new Response();
 
 						// std::cerr << response->getFile().is_open() << std::endl;
-						std::string data = errorPage(e.getStatusCode());
+						std::string data = errorPage(e);
 						response->buffer.setData(data.c_str(), data.length());
 						// std::cout << data << std::endl;
 						responses.insert(std::make_pair(connection.getFD(), response));
