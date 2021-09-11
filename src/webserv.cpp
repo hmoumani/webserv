@@ -1,11 +1,13 @@
 #include "webserv.hpp"
 
-Socket sock;
-socklen_t addrlen = sizeof(sock.getAddress());
+// std::vector<Socket> sockets;
+socklen_t addrlen = sizeof(sockaddr_in);
 
 void error(std::string message) {
-	std::cerr << message << ". " << std::strerror(errno) << ". " << errno << std::endl;
-	sock.close();
+	std::cerr << "webserv: " << message << ". " << std::strerror(errno) << ". " << errno << std::endl;
+	for (std::vector<Config>::const_iterator it = servers.begin(); it != servers.end(); ++it) {
+		it->socket->close();
+	}
 	return exit(EXIT_FAILURE);
 }
 
@@ -31,41 +33,90 @@ static std::string getResponse(std::string request) {
 	return response.str();
 }
 
-void setup_server() {
+void setup_server(Config & conf) {
 	int opt = 1;
 
-	sock.create(AF_INET, SOCK_STREAM, 0);
-	sock.setState(NonBlockingSocket);
-	sock.setOption(SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-	sock.setAddress(AF_INET, INADDR_ANY, PORT);
-	sock.bind();
-	sock.listen(10);
+	conf.socket = new Socket();
+	conf.socket->create(AF_INET, SOCK_STREAM, 0);
+	conf.socket->setState(NonBlockingSocket);
+	conf.socket->setOption(SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+	conf.socket->setAddress(AF_INET, inet_addr(conf.host.c_str()), conf.port);
+	conf.socket->bind();
+	conf.socket->listen(10);
 }
 
 void handle_signal(int sig) {
 	std::cout << "SIGNAL " << sig << std::endl;
 }
-int main() {
 
-	setup_server();
 
+Socket * isSocket(int fd) {
+	for (std::vector<Config>::const_iterator it = servers.begin(); it != servers.end(); ++it) {
+		if (it->socket->getFD() == fd) {
+			return it->socket;
+		}
+	}
+	return NULL;
+}
+
+
+Socket * socketExists(const std::vector<Config>::iterator & curr_it) {
+	for (std::vector<Config>::const_iterator it = servers.begin(); it != curr_it; ++it) {
+		if (it->socket->getHost() == curr_it->host && it->socket->getPort() == curr_it->port) {
+			return it->socket;
+		}
+	}
+	return NULL;
+}
+
+const Config * getConnectionServerConfig(const Socket * socket, const Request & request) {
+	const Config * default_server = NULL;
+
+	for (std::vector<Config>::const_iterator it = servers.begin(); it != servers.end(); ++it) {
+		if (it->host == socket->getHost() && it->port == socket->getPort()) {
+			if (default_server == NULL) {
+				default_server = &(*it);
+			}
+			if (it->server_name == request.getHeader("Host")) {
+				return &(*it);
+			}
+		}
+	}
+	return default_server;
+}
+
+int main(int argc, char *argv[]) {
 	std::vector<pollfd> fds;
 	std::map<int, Response*> responses;
-	// for (int i = 1; i < 31; ++i) {
+	std::map<int, Socket> connections;
+
+	open_config_file(argc, argv);
+
+	// std::cerr << servers[0].host << " " << htonl(inet_addr(servers[0].host.c_str())) << ":" << servers[0].port << std::endl;
+
+	for (std::vector<Config>::iterator it = servers.begin(); it != servers.end(); ++it) {
+		Socket * sock = socketExists(it);
+		if (!sock) { // checks if host:port already exists 
+			setup_server(*it);
+			fds.push_back((pollfd){it->socket->getFD(), POLLIN});
+			std::cerr << "Listening on " << it->host << ":" << it->port << std::endl;
+		} else { // else copy the already existed socket 
+			it->socket = sock;
+		}
+	}
+
 	signal(13, handle_signal);
-	// }
-	fds.push_back((pollfd){sock.getFD(), POLLIN});
 
 	while (true) {
 
-		// examines to all socket if they are ready
+		// examines to all socket & connections if they are ready
 		int pret = poll(&fds.front(), fds.size(), -1);
 	
 		if (pret == -1) {
 			error("poll() failed");
 		}
 
-		// loop through all sockets
+		// loop through all sockets & connections
 		int curr_size = fds.size();
 		for (int i = 0; i < curr_size; ++i) {
 
@@ -75,31 +126,43 @@ int main() {
 			// if (fds[i].revents != 4)
 			// 	std::cerr << "CONNECTION: " << i << " " << fds[i].revents << std::endl;
 			// new connection
-			if (fds[i].fd == sock.getFD()) {
+			Socket * sock;
+			if ((sock = isSocket(fds[i].fd))) {
 				Socket new_connection;
-
 				do {	
-					new_connection = sock.accept();
+					new_connection = sock->accept();
 					if (new_connection.getFD() != -1) {
+						std::cerr << "Socket: " << sock->getHost() << ":" << sock->getPort() << ", ";
+						std::cerr << "New Connection: " << new_connection.getHost() << ":" << new_connection.getPort() << std::endl;
+						new_connection.setState(NonBlockingSocket);
+						new_connection.setSocket(sock);
 						fds.push_back((pollfd){new_connection.getFD(), POLLIN});
+						connections.insert(std::make_pair(new_connection.getFD(), new_connection));
 					}
 
 				} while (new_connection.getFD() != -1);
 			// new data from a connection
 			} else {
 
-				Socket connection;
+				Socket & connection = connections[fds[i].fd];
 				bool close = false;
 				Response * response;
-				connection.setFD(fds[i].fd);
+				// connection.setFD(fds[i].fd);
+				// connection->setState(NonBlockingSocket);
 
 				if (fds[i].revents & POLLIN) {
 
 					std::string message = connection.receive();
+					
+					// std::cerr << message << std::endl;
 
 					Request request(message);
 					try {
-						response = new Response(request);
+						if (request.getHeader("Host") == "") {
+							throw StatusCodeException(HttpStatus::BadRequest);
+						}
+
+						response = new Response(request, getConnectionServerConfig(connection.getSocket(), request));
 						
 						std::string str = response->HeadertoString();
 
@@ -108,15 +171,21 @@ int main() {
 						response->buffer.setData(str.c_str(), str.length());
 						
 						fds[i].events = POLLOUT;
-					} catch(const StatusCodeException & e) {
-						// std::cerr << e.getStatusCode() << " - " << e.what() << '\n';
-
+					}
+					catch(const ListingException & e){
 						response = new Response();
 
-						// std::cerr << response->getFile().is_open() << std::endl;
+						std::string data = listingPage(e);
+						response->buffer.setData(data.c_str(), data.length());
+						responses.insert(std::make_pair(connection.getFD(), response));
+						fds[i].events = POLLOUT;
+					} 
+					catch(const StatusCodeException & e) {
+						response = new Response();
+
 						std::string data = errorPage(e);
 						response->buffer.setData(data.c_str(), data.length());
-						// std::cout << data << std::endl;
+
 						responses.insert(std::make_pair(connection.getFD(), response));
 						fds[i].events = POLLOUT;
 					}
@@ -151,7 +220,9 @@ int main() {
 			}
 		}
 	}
-	sock.close();
+	for (std::vector<Config>::const_iterator it = servers.begin(); it != servers.end(); ++it) {
+		it->socket->close();
+	}
 
 	// Bind the socket to a IP / port
 	// Mark the socket for listening in

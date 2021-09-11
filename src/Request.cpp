@@ -1,6 +1,6 @@
 #include "Request.hpp"
 
-static Method getMethodFromName(const std::string & method) {
+Method getMethodFromName(const std::string & method) {
     if (method == "GET") {
         return GET;
     } else if (method == "POST") {

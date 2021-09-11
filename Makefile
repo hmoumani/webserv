@@ -1,16 +1,12 @@
-NAME=webserv
-
-SRC=Socket.cpp Message.cpp Request.cpp webserv.cpp Response.cpp Mimetypes.cpp
-
-SRC:=$(addprefix src/,$(SRC))
-
-FLAGS=-Wall -Wextra -Werror
+NAME	:= webserv
+SRC		:= parser.cpp webserv.cpp Socket.cpp Message.cpp Request.cpp Response.cpp MimeTypes.cpp Config.cpp
+SRC		:= $(addprefix src/,$(SRC))
+FLAGS	:= -Wall -Wextra -Werror
 
 all: $(NAME)
 
-
 $(NAME):$(SRC)
-	clang++ -g  --std=c++98 $(SRC) -o $(NAME) -Iinclude
+	clang++ --std=c++98 -g -fsanitize=address -glldb $(SRC) -Iinclude -o $@
 
 clean:
 	@rm -rf $(NAME)

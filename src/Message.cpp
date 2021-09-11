@@ -53,11 +53,11 @@ Message::~Message() {
 }
 
 const std::string & Message::getStartLine() const { return this->_start_line; }
-const std::unordered_map<std::string, std::string> & Message::getHeader() const { return this->_headers; }
+const std::map<std::string, std::string> & Message::getHeader() const { return this->_headers; }
 const std::string & Message::getBody() const { return this->_body; };
 const std::string Message::getHeader(const std::string & key) const
 {
-    std::unordered_map<std::string, std::string>::const_iterator it =  this->_headers.find(key);
+    std::map<std::string, std::string>::const_iterator it =  this->_headers.find(key);
     if (it == _headers.end())
         return ("");
     return it->second;

@@ -2,6 +2,9 @@
 # define SOCKET_HPP
 
 #include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 #include <iostream>
 #include <errno.h>
 #include <fcntl.h>
@@ -10,6 +13,7 @@
 #include <cstring>
 #include <stdlib.h>
 #include <vector>
+#include <sstream>
 #include "Buffer.hpp"
 
 #define BUFFER_SIZE 128
@@ -21,6 +25,7 @@ private:
     int _fd;
     sockaddr_in _address;
 
+    Socket * socket;
 public:
     Socket();
     Socket(int domain, int type, int protocol);
@@ -42,6 +47,12 @@ public:
     Socket accept() const;
     std::string receive() const;
     void send(Buffer & buffer) const;
+    std::string getHost() const;
+    in_port_t getPort() const;
+
+    void setSocket(Socket * sock);
+    const Socket * getSocket() const;
+
     // void send(std::vector<char> vec) const;
 
 };

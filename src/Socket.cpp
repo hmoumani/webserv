@@ -1,10 +1,10 @@
 #include "Socket.hpp"
 
-Socket::Socket() : _fd (-1) {
+Socket::Socket() : _fd (-1), socket(NULL) {
     memset(&_address, 0, sizeof(_address));
 }
 
-Socket::Socket(int domain, int type, int protocol) {
+Socket::Socket(int domain, int type, int protocol) : socket(NULL) {
     create(domain, type, protocol);
 }
 
@@ -13,9 +13,7 @@ Socket::~Socket() {
 }
 
 void Socket::create(int domain, int type, int protocol) {
-    std::cout << "Init Socket" << std::endl;
     _fd = ::socket(domain, type, protocol);
-    std::cout << "SOCKET: " << _fd << std::endl;
     if (_fd == -1) {
         error("Failed to create socket");
     }
@@ -51,7 +49,10 @@ void Socket::setAddress(sa_family_t family, in_addr_t s_addr, in_port_t sin_port
 
 void Socket::bind() const {
 	if (::bind(_fd, (struct sockaddr *)&_address, sizeof(_address)) == -1) {
-        error("Failed to bind to port");
+        std::stringstream ss;
+
+        ss << "Failed to bind to " << inet_ntoa(_address.sin_addr) << ":" << ntohs(_address.sin_port);
+        error(ss.str());
 	}
 }
 
@@ -84,7 +85,7 @@ Socket Socket::accept() const {
     socklen_t addrlen = sizeof(_address);
     Socket sock;
 
-	sock._fd = ::accept(_fd, (sockaddr *) & _address, &addrlen);
+	sock._fd = ::accept(_fd, (struct sockaddr *) (&sock._address), &addrlen);
 
     if (sock._fd == -1 && errno != EAGAIN) {
 		error("Failed to grap connection");
@@ -126,4 +127,20 @@ void Socket::error(std::string message) const {
 	std::cerr << message << ". " << std::strerror(errno)  << ". " << errno << std::endl;
 	close();
 	return exit(EXIT_FAILURE);
+}
+
+std::string Socket::getHost() const {
+    return inet_ntoa(_address.sin_addr);
+}
+
+in_port_t Socket::getPort() const {
+    return ntohs(_address.sin_port);
+}
+
+void Socket::setSocket(Socket * sock) {
+    socket = sock;
+}
+
+const Socket * Socket::getSocket() const {
+    return socket;
 }

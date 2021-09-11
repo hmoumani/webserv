@@ -3,6 +3,7 @@
 
 #include "Message.hpp"
 #include "StatusCodeException.hpp"
+#include "ListingException.hpp"
 // #include "webserv.hpp"
 
 enum Method {
@@ -25,5 +26,8 @@ public:
     const std::string & getHTTPVersion() const;
 
 };
+
+Method getMethodFromName(const std::string & method);
+
 
 #endif

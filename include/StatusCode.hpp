@@ -112,12 +112,13 @@ enum StatusCode
 	xxx_max = 1023
 };
 
-inline bool isInformational(int code) { return (code >= 100 && code < 200); } //!< \returns \c true if the given \p code is an informational code.
-inline bool isSuccessful(int code)    { return (code >= 200 && code < 300); } //!< \returns \c true if the given \p code is a successful code.
-inline bool isRedirection(int code)   { return (code >= 300 && code < 400); } //!< \returns \c true if the given \p code is a redirectional code.
-inline bool isClientError(int code)   { return (code >= 400 && code < 500); } //!< \returns \c true if the given \p code is a client error code.
-inline bool isServerError(int code)   { return (code >= 500 && code < 600); } //!< \returns \c true if the given \p code is a server error code.
-inline bool isError(int code)         { return (code >= 400); }               //!< \returns \c true if the given \p code is any type of error code.
+inline bool isInformational(int code)	{ return (code >= 100 && code < 200); } //!< \returns \c true if the given \p code is an informational code.
+inline bool isSuccessful(int code)   	{ return (code >= 200 && code < 300); } //!< \returns \c true if the given \p code is a successful code.
+inline bool isRedirection(int code)   	{ return (code >= 300 && code < 400); } //!< \returns \c true if the given \p code is a redirectional code.
+inline bool isClientError(int code)   	{ return (code >= 400 && code < 500); } //!< \returns \c true if the given \p code is a client error code.
+inline bool isServerError(int code)   	{ return (code >= 500 && code < 600); } //!< \returns \c true if the given \p code is a server error code.
+inline bool isError(int code)         	{ return (code >= 400); }               //!< \returns \c true if the given \p code is any type of error code.
+inline bool isVadilCode(int code)	  	{ return (code >= 100 && code < 600); } //!< \returns \c true if the given \p code is a valid status code.
 
 /*! Returns the standard HTTP reason phrase for a HTTP status code.
  * \param code An HTTP status code.
