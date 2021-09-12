@@ -149,7 +149,7 @@ const std::ifstream & Response::getFile() const {
 	return file;
 }
 
-void    Response::send_file(Socket & connection)
+void	Response::send_file(Socket & connection)
 {
 	const int SIZE = 2;
 	char buff[SIZE];	
@@ -169,7 +169,7 @@ void    Response::send_file(Socket & connection)
 	// std::cerr << ret << "\n";
 }
 
-void    Response::readFile() {
+void	Response::readFile() {
 
 	buffer.resize(1024);
 	file.read(buffer.data, buffer.size);
@@ -217,7 +217,7 @@ char *getFileCreationTime(const char *path, char *format)
 {
     struct stat attr;
     stat(path, &attr);
-	return formatdate(format, attr.st_ctime);
+	return formatdate(format, attr.st_mtime);
 }
 
 
@@ -247,9 +247,7 @@ std::string listingPage(const ListingException & e)
 			if (!strcmp(".", ent->d_name) || !strcmp("..", ent->d_name) || !(stat(file_path.c_str(), &attr) == 0 && S_ISDIR(attr.st_mode)))
 				continue ;
 			body << "<a href=\"" << ent->d_name << "\">" << ent->d_name << "</a> " << std::setw(70 - strlen(ent->d_name)) << getFileCreationTime(file_path.c_str(), format);
-			body << "                   ";
-			body << "-";
-			body << "\n";
+			body << "                   -\n";
 		}
 		closedir (dir);
 	}
@@ -262,8 +260,7 @@ std::string listingPage(const ListingException & e)
 			if (!strcmp(".", ent->d_name) || !strcmp("..", ent->d_name) || (stat(file_path.c_str(), &attr) == 0 && S_ISDIR(attr.st_mode)))
 				continue ;
 			body << "<a href=\"" << ent->d_name << "\">" << ent->d_name << "</a> " << std::setw(70 - strlen(ent->d_name)) << getFileCreationTime(file_path.c_str(), format);
-			// body << "*" <<20 - Utils::to_str(attr.st_size).length();
-			body << std::setw(20 );
+			body << std::setw(20);
 			body << attr.st_size;
 			body << "\n";
 		}
