@@ -42,7 +42,6 @@ class Response : public Message
         void    readFile();
         const std::ifstream & getFile() const;
         std::string getIndexFile(const Config *, const std::string &, const std::string &);
-
         void setServerConfig(Config * config);
 };
 
