@@ -16,8 +16,8 @@
 #include <stdexcept>
 #include <unistd.h>
 #include <algorithm>
-#include "Socket.hpp"
-
+// #include "Socket.hpp"
+class Socket;
 class Config {
 public:
     Config();

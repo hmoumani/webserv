@@ -15,9 +15,9 @@
 #include <vector>
 #include <sstream>
 #include "Buffer.hpp"
-
+#include "Response.hpp"
 #define BUFFER_SIZE 128
-
+class Response;
 enum TypeSocket {BlockingSocket, NonBlockingSocket};
 
 class Socket {
@@ -46,7 +46,7 @@ public:
     void error(std::string message) const;
     Socket accept() const;
     std::string receive() const;
-    void send(Buffer & buffer) const;
+    void send(Response & response) const;
     std::string getHost() const;
     in_port_t getPort() const;
 

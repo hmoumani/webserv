@@ -154,10 +154,11 @@ int main(int argc, char *argv[]) {
 
 					std::string message = connection.receive();
 					
-					// std::cerr << message << std::endl;
 
-					Request request(message);
+					std::cerr << "-----\n" << message << "-----\n" << std::endl;
+
 					try {
+						Request request(message);
 						if (request.getHeader("Host") == "") {
 							throw StatusCodeException(HttpStatus::BadRequest);
 						}
@@ -166,9 +167,10 @@ int main(int argc, char *argv[]) {
 						
 						std::string str = response->HeadertoString();
 
-						responses.insert(std::make_pair(connection.getFD(), response));
+						// responses.insert(std::make_pair(connection.getFD(), response));
+						responses[connection.getFD()] = response;
 						
-						response->buffer.setData(str.c_str(), str.length());
+						response->buffer_header.setData(str.c_str(), str.length());
 						
 						fds[i].events = POLLOUT;
 					}
@@ -176,17 +178,19 @@ int main(int argc, char *argv[]) {
 						response = new Response();
 
 						std::string data = listingPage(e);
-						response->buffer.setData(data.c_str(), data.length());
-						responses.insert(std::make_pair(connection.getFD(), response));
+						response->buffer_header.setData(data.c_str(), data.length());
+						// responses.insert(std::make_pair(connection.getFD(), response));
+						responses[connection.getFD()] = response;
 						fds[i].events = POLLOUT;
-					} 
+					}
 					catch(const StatusCodeException & e) {
 						response = new Response();
 
 						std::string data = errorPage(e);
-						response->buffer.setData(data.c_str(), data.length());
+						response->buffer_header.setData(data.c_str(), data.length());
 
-						responses.insert(std::make_pair(connection.getFD(), response));
+						// responses.insert(std::make_pair(connection.getFD(), response));
+						responses[connection.getFD()] = response;
 						fds[i].events = POLLOUT;
 					}
 				}
@@ -196,14 +200,19 @@ int main(int argc, char *argv[]) {
 				if (fds[i].revents & POLLOUT) {
 					
 					
-					if (response->buffer.length() == 0 && response->getFile().is_open()) {
+					if ((response->buffer_body.length() == 0 && (response->is_cgi()  || response->getFile().is_open()))) {
 						response->readFile();
 					}
-
-					connection.send(response->buffer);
-
-					if ((!response->getFile().is_open() || (response->getFile().is_open() && !response->getFile())) && response->buffer.length() == 0) {
-						close = true;
+					if (response->buffer_body.length() || response->buffer_header.length())
+						connection.send(*response);
+						
+					if (!response->is_cgi() && ((!response->getFile().is_open() || (response->getFile().is_open() && !response->getFile())) && response->buffer_body.length() == 0)) {
+						// close = true;
+						fds[i].events = POLLIN;
+						if (response->getHeader("Transfer-Encoding") == "chunked") {
+				        	write(2, "0\r\n\r\n", 5);
+							send(connection.getFD(), "0\r\n\r\n", 5, 0);
+						}
 					}
 				}
 				if (fds[i].revents & POLLHUP) {

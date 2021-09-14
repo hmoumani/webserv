@@ -31,7 +31,6 @@
 // #include "Request.hpp"
 // #include "MimeTypes.hpp"
 #include "Config.hpp"
-#include "Response.hpp"
 // #include "Utils.hpp"
 #include <dirent.h>
 typedef int sockid_t;

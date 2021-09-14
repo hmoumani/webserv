@@ -114,12 +114,31 @@ std::string Socket::receive() const {
 //     }
 // }
 
-void Socket::send(Buffer & buffer) const {
+void Socket::send(Response & res) const {
     // std::cerr << "BEFORE: " << buffer.length()  << std::endl;
-    int bytes = ::send(_fd, buffer.data, buffer.length(), 0);
+    Buffer * buffer; 
+    if (res.buffer_header.length() != 0) {
+        buffer = &res.buffer_header;
+    } else {
+        buffer = &res.buffer_body;
+        if (buffer->pos == 0) {
+            std::stringstream ss;
+            ss << std::hex << buffer->length() << CRLF;
+            write(2, ss.str().c_str(), ss.str().length());
+            ::send(_fd, ss.str().c_str(), ss.str().length(), 0);
+        }
+    }
+        write(2, buffer->data + buffer->pos, buffer->length());
+    int bytes = ::send(_fd, buffer->data + buffer->pos, buffer->length(), 0);
+
     // std::cerr << "SENT: " << bytes << std::endl;
     if (bytes != -1) {
-        buffer.pos += bytes;
+        buffer->pos += bytes;
+    }
+
+    if (res.buffer_body.length() == 0) {
+        write(2, "\r\n", 2);
+        ::send(_fd, "\r\n", 2, 0);
     }
 }
 

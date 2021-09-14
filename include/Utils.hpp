@@ -61,7 +61,7 @@ namespace Utils {
 	inline std::string getFileExtension(const std::string& path) {
 		std::string fileName = getFileName(path);
 		size_t extStart = fileName.find_last_of('.');
-		std::string ext = extStart == std::string::npos ? "" : fileName.substr(extStart + 1);
+		std::string ext = extStart == std::string::npos ? "" : fileName.substr(extStart);
 		// Uti transform(ext.begin(), ext.end(), ext.begin(), op_custom);
 		
 		return ext;

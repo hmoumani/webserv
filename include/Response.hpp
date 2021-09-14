@@ -11,11 +11,11 @@
 
 # include "Buffer.hpp"
 # include "Request.hpp"
-# include "Socket.hpp"
+// # include "Socket.hpp"
 # include "Utils.hpp"
 # include "MimeTypes.hpp"
+#include "Config.hpp"
 // #include
-
 class Response : public Message
 {
     private:
@@ -23,12 +23,15 @@ class Response : public Message
         std::ifstream file;
         struct stat fileStat;
         std::string basePath;
-
+        bool        _is_cgi;
+        pid_t       pid;
+        int         fd[2];
         const Config * server;
 
         const std::string getRequestedPath(const Request &, const Config *);
     public:
-        Buffer buffer;
+        Buffer buffer_header;
+        Buffer buffer_body;
         Response();
         Response(Response const &);
         Response(Request const &, const Config *);
@@ -43,6 +46,7 @@ class Response : public Message
         const std::ifstream & getFile() const;
         std::string getIndexFile(const Config *, const std::string &, const std::string &);
         void setServerConfig(Config * config);
+        bool is_cgi() const ;
 };
 
 std::string errorPage(const StatusCodeException & e);

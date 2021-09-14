@@ -17,8 +17,10 @@ Request::Request(const std::string & message) throw(StatusCodeException) : Messa
 
     for (int i = 0; i < 3; ++i) {
         end = _start_line.find_first_of(' ', start);
+        end = end == std::string::npos ? _start_line.length() : end;
         std::string token = _start_line.substr(start, end - start);
         start = _start_line.find_first_not_of(' ', end);
+        start = start == std::string::npos ? 0 : start;
         if (i == 0) {
             _method = getMethodFromName(token);
         } else if (i == 1) {
