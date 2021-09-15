@@ -173,14 +173,14 @@ std::string Response::HeadertoString()
 
 	if (is_cgi())
 	{
-		char s[1025] = {0};
+		char s[2050] = {0};
 		// buff.resize(1025);
 		// buff.data[1024] = 0;
 		int ret = 0, total = 0;
 		size_t pos;
 		while (true)
 		{
-			ret = read(fd[0], s + total, 1024 - total);
+			ret = read(fd[0], s + total, 2049 - total);
 			total += ret;
 			s[total] = 0;
 			if ((pos = std::string(s).find("\r\n\r\n")) != std::string::npos || (pos = std::string(s).find("\n\n")) != std::string::npos )
@@ -313,13 +313,14 @@ char *getFileCreationTime(const char *path, char *format)
 
 std::string listingPage(const ListingException & e)
 {
+	std::ostringstream header("");
 	std::ostringstream body("");
 
-	body << "HTTP/1.1 " << 200 << " " << "OK" << CRLF;
-	body << "Connection: keep-alive" << CRLF;
-	body << "Content-Type: text/html" << CRLF;
-	body << "Date: " << Utils::getDate() <<  CRLF;
-	body << "Server: " << SERVER_NAME << CRLF << CRLF;
+	header << "HTTP/1.1 " << 200 << " " << "OK" << CRLF;
+	header << "Connection: keep-alive" << CRLF;
+	header << "Content-Type: text/html" << CRLF;
+	header << "Date: " << Utils::getDate() <<  CRLF;
+	header << "Server: " << SERVER_NAME << CRLF ;
 
 	DIR *dir;
 	struct dirent *ent;
@@ -357,7 +358,9 @@ std::string listingPage(const ListingException & e)
 		closedir (dir);
 	}
 	body << "</pre><hr></body>\n</html>\n";
-	return body.str();
+	header << "Content-Length: " << body.str().length() << CRLF << CRLF;
+	header << body.str();
+	return header.str();
 }
 
 bool Response::is_cgi() const
