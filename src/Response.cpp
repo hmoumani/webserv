@@ -116,22 +116,21 @@ void Response::handleGetRequest(Request const & req, const Config * location, co
 			break;
 		}
 	}
-	std::cout << "lol: " << location->cgi << std::endl;
-	if (Utils::getFileExtension(filename) == ".php")
+	// std::cout << "lol: " << location-> << std::endl;
+	// if (Utils::getFileExtension(filename) == ".php")
+	if (server->location.find(Utils::getFileExtension(filename)) != server->location.end())
 	{
 		_is_cgi = true;
 		file.close();
 
-
-		char s1[100] = "/goinfre/hmoumani/.brew/opt/php@7.2/bin/php-cgi";
-		char * const ar[3] = {const_cast<char *>(location->cgi.c_str()), const_cast<char *>(request_path.c_str()), NULL};
+		char * const ar[4] = {const_cast<char *>(location->cgi.c_str()), const_cast<char *>(request_path.c_str()), NULL};
 		pipe(fd);
 		pid = fork();
 		if (pid == 0)
 		{
 			close(fd[0]);
 			dup2(fd[1], 1);
-			execve(s1, ar, NULL);
+			execve(ar[0], ar, NULL);
 			close(fd[1]);
 			return ;
 		}
@@ -144,6 +143,8 @@ void Response::handleGetRequest(Request const & req, const Config * location, co
 	insert_header("Transfer-Encoding", "chunked");
 	const char * type = MimeTypes::getType(filename.c_str());
 	type = type ?: "text/plain";
+	if (_is_cgi)
+		type = "text/html; charset=UTF-8";
 	insert_header("Content-Type", type);
 	insert_header("Connection", "keep-alive");
 	insert_header("Accept-Ranges", "bytes");
@@ -159,15 +160,55 @@ void Response::handleDeleteRequest(Request const & req, const Config * location)
 
 }
 
-std::string Response::HeadertoString() const
+std::string Response::HeadertoString()
 {
 	std::ostringstream response("");
+	// Buffer buff;
 
 	response << "HTTP/1.1 " << this->status << " " << reasonPhrase(this->status) << CRLF;
 	for (std::map<std::string, std::string>::const_iterator it = _headers.begin(); it != _headers.end(); ++it)
 	{
 		response << it->first << ": " << it->second << CRLF;
 	}
+
+	if (is_cgi())
+	{
+		char s[1025] = {0};
+		// buff.resize(1025);
+		// buff.data[1024] = 0;
+		int ret = 0, total = 0;
+		size_t pos;
+		while (true)
+		{
+			ret = read(fd[0], s + total, 1024 - total);
+			total += ret;
+			s[total] = 0;
+			if ((pos = std::string(s).find("\r\n\r\n")) != std::string::npos || (pos = std::string(s).find("\n\n")) != std::string::npos )
+				break ;
+		}
+		// size_t pos = std::string(s).find("\r\n\r\n");
+		std::string token = std::string(s).substr(0, pos);
+		buffer_body.setData(std::string(s).substr(pos).c_str(), std::string(s).substr(pos).length());
+		response << token << CRLF;
+
+		// strcpy(buffer_body.data, std::string(buff.data).substr(0, pos).c_str());
+	}
+	// if (is_cgi())
+	// {
+	// 	while (true)
+	// 	{
+	// 		int ret = read(fd[0], &c, 1);
+	// 		std::cout << ret << std::endl;
+	// 		if ((c == '\n' && header_line.length() == 0) || ret <= 0)
+	// 			break ;
+	// 		if (c == '\n')
+	// 		{
+	// 			response << header_line << CRLF;
+	// 			header_line.clear();
+	// 		}
+	// 		header_line += c;
+	// 	}
+	// }
 	// if (!is_cgi())
 		response << CRLF;
 	return (response.str());
@@ -232,7 +273,7 @@ std::string errorPage(const StatusCodeException & e) {
 	header << "Connection: keep-alive" << CRLF;
 	header << "Content-Type: text/html" << CRLF;
 	if (e.getLocation() != ""){
-		body << "Location: " << e.getLocation() <<  CRLF;
+		header << "Location: " << e.getLocation() <<  CRLF;
 		std::cerr << "Location: " << e.getLocation() <<  CRLF;
 	}
 	header << "Date: " << Utils::getDate() <<  CRLF;

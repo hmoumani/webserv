@@ -40,7 +40,7 @@ class Response : public Message
         void handleGetRequest(Request const &, const Config *, const std::string &);
         void handlePostRequest(Request const &, const Config *);
         void handleDeleteRequest(Request const &, const Config *);
-        std::string HeadertoString() const;
+        std::string HeadertoString() ;
         void    send_file(Socket & connection);
         void    readFile();
         const std::ifstream & getFile() const;

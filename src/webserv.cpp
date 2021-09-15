@@ -210,7 +210,7 @@ int main(int argc, char *argv[]) {
 						// close = true;
 						fds[i].events = POLLIN;
 						if (response->getHeader("Transfer-Encoding") == "chunked") {
-				        	write(2, "0\r\n\r\n", 5);
+				        	// write(2, "0\r\n\r\n", 5);
 							send(connection.getFD(), "0\r\n\r\n", 5, 0);
 						}
 					}

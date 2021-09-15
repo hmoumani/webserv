@@ -124,11 +124,11 @@ void Socket::send(Response & res) const {
         if (buffer->pos == 0) {
             std::stringstream ss;
             ss << std::hex << buffer->length() << CRLF;
-            write(2, ss.str().c_str(), ss.str().length());
+            // write(2, ss.str().c_str(), ss.str().length());
             ::send(_fd, ss.str().c_str(), ss.str().length(), 0);
         }
     }
-        write(2, buffer->data + buffer->pos, buffer->length());
+        // write(2, buffer->data + buffer->pos, buffer->length());
     int bytes = ::send(_fd, buffer->data + buffer->pos, buffer->length(), 0);
 
     // std::cerr << "SENT: " << bytes << std::endl;
@@ -137,7 +137,7 @@ void Socket::send(Response & res) const {
     }
 
     if (res.buffer_body.length() == 0) {
-        write(2, "\r\n", 2);
+        // write(2, "\r\n", 2);
         ::send(_fd, "\r\n", 2, 0);
     }
 }
