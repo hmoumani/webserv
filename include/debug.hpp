@@ -3,7 +3,7 @@
 #include <fstream>
 #include <iostream>
 
-#define DEBUG FALSE
+#define DEBUG
 
 #ifdef DEBUG
 std::ostream &dout = std::cerr;

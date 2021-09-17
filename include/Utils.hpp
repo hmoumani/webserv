@@ -1,6 +1,7 @@
 #ifndef UTILS_HPP
 # define UTILS_HPP
-# include "webserv.hpp"
+// # include "webserv.hpp"
+#define CRLF "\r\n"
 
 namespace Utils {
 

@@ -16,10 +16,10 @@ Config::Config(const Config & config) {
     port = config.port;
     host = config.host;
     server_name = config.server_name;
-    // error_page = config.error_page;
+    error_page = config.error_page;
     max_body_size = config.max_body_size;
     location = config.location;
-    // methods = config.methods;
+    methods = config.methods;
     root = config.root;
     redirect = config.redirect;
     listing = config.listing;

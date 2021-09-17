@@ -7,6 +7,7 @@
 # include <sys/stat.h>
 # include <unistd.h>
 # include <sstream>
+# include <dirent.h>
 
 # include "Buffer.hpp"
 # include "Request.hpp"
@@ -15,11 +16,17 @@
 # include "MimeTypes.hpp"
 #include "Config.hpp"
 // #include
+class Config;
+class Request;
+class Socket;
+
+#define SERVER_NAME "WebServer (MacOs)"
+
 class Response : public Message
 {
     private:
         HttpStatus::StatusCode status;
-        std::ifstream file;
+        std::iostream * stream;
         struct stat fileStat;
         std::string basePath;
         bool        _is_cgi;
@@ -39,18 +46,23 @@ class Response : public Message
         void handleGetRequest(Request const &, const Config *, const std::string &);
         void handlePostRequest(Request const &, const Config *);
         void handleDeleteRequest(Request const &, const Config *);
-        std::string HeadertoString() ;
+        std::string HeadertoString();
         void    send_file(Socket & connection);
         void    readFile();
-        const std::ifstream & getFile() const;
-        std::string getIndexFile(const Config *, const std::string &, const std::string &);
-        void setServerConfig(Config * config);
+        const std::iostream * getFile() const;
+        std::string getIndexFile(const Config * location, const std::string & filename, const std::string & req_taget);
+        void setErrorPage(const StatusCodeException & e, const Config * location);
+
+        void setServerConfig(const Config * config);
+        const Config * getServerConfig() const;
         bool is_cgi() const ;
+
 };
 
-std::string errorPage(const StatusCodeException & e);
-std::string listingPage(const ListingException & e);
+std::stringstream * errorPage(const StatusCodeException & e);
 static const Config * getLocation(const Request & req, const Config * server);
 static const std::string getPathFromUri(const std::string & uri);
+static const void handleRequest(const Request & req, const Config * location);
+std::string listingPage(const ListingException & e);
 
 #endif

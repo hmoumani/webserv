@@ -18,6 +18,7 @@
 #include <algorithm>
 // #include "Socket.hpp"
 class Socket;
+
 class Config {
 public:
     Config();

@@ -6,7 +6,10 @@ FLAGS	:= -Wall -Wextra -Werror
 all: $(NAME)
 
 $(NAME):$(SRC)
-	clang++ --std=c++98 -g -glldb $(SRC) -Iinclude -o $@
+	clang++ --std=c++98 $(SRC) -Iinclude -o $@
+
+debug:$(SRC)
+	clang++ --std=c++98 -g -fsanitize=address -glldb $(SRC) -Iinclude -o $(NAME)
 
 clean:
 	@rm -rf $(NAME)

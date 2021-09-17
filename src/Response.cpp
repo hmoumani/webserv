@@ -45,11 +45,11 @@ const std::string Response::getRequestedPath(const Request & req, const Config *
 	struct stat buffer;
 
 	std::string requested_path = location->root;
-	// requested_path += (location->uri != "" && location->uri[location->uri.length() - 1] != '/') ?  "/" : "";
-	requested_path += location->uri != "" ?  path.substr(location->uri.length()) : path;
+
+	requested_path += location->uri != "" ? path.substr(location->uri.length()) : path;
 	// dout << "SUBSTR: " << location->uri << " " << location->uri.length() << " " << path.substr(location->uri.length()) << std::endl;
 
-	std::cerr << "Requested File: " << requested_path << std::endl;
+	dout << "Requested File: " << requested_path << std::endl;
 	if (requested_path[requested_path.length() - 1] != '/' && stat(requested_path.c_str(), &buffer) == 0 && S_ISDIR(buffer.st_mode)) {
 		throw StatusCodeException(HttpStatus::MovedPermanently, path + '/');
 	}
@@ -100,15 +100,22 @@ void Response::handleGetRequest(Request const & req, const Config * location, co
 	std::ostringstream oss("");
 	std::map<std::string, Config>::const_iterator cgi_location;
 
-	file.open(filename.c_str());
+	std::fstream * file = new std::fstream();
+
+	file->open(filename.c_str());
 	stat (filename.c_str(), &this->fileStat);
 	Utils::fileStat(filename, fileStat);
 	if (S_ISDIR(fileStat.st_mode))
 	{
 		filename = getIndexFile(location, filename, req.getRequestTarget());
-		file.close();
-		file.open(filename.c_str());
+		file->close();
+		file->open(filename.c_str());
+		delete _body;
+		_body = file;
 		stat (filename.c_str(), &this->fileStat);
+	} else {
+		delete _body;
+		_body = file;
 	}
 	for (std::map<std::string, Config>::const_iterator it = server->location.begin(); it != server->location.end(); ++it) {
 		if (it->first == Utils::getFileExtension(filename)) {
@@ -122,7 +129,7 @@ void Response::handleGetRequest(Request const & req, const Config * location, co
 	{
 		char buff[101] = {0};
 		_is_cgi = true;
-		file.close();
+		file->close();
 
 		// std::map<std::string, std::string> env;
 		gethostname(buff, 100);
@@ -239,37 +246,37 @@ std::string Response::HeadertoString()
 	return (response.str());
 }
 
-const std::ifstream & Response::getFile() const {
-	return file;
+const std::iostream * Response::getFile() const {
+	return _body;
 }
 
-void	Response::send_file(Socket & connection)
-{
-	const int SIZE = 2;
-	char buff[SIZE];	
+// void    Response::send_file(Socket & connection)
+// {
+// 	const int SIZE = 2;
+// 	char buff[SIZE];	
 
-	ssize_t sent = 0;
-	ssize_t temp = 0;
-	file.read(buff, SIZE);
-	std::streamsize s = ((file) ? SIZE : file.gcount());
+// 	ssize_t sent = 0;
+// 	ssize_t temp = 0;
+// 	stream->read(buff, SIZE);
+// 	std::streamsize s = ((*stream) ? SIZE : stream->gcount());
 
-	int ret = ::send(connection.getFD(), buff, s, 0);
+// 	int ret = ::send(connection.getFD(), buff, s, 0);
 
-	if (ret != -1) {
-		std::streampos lost = s - ret;
-		file.seekg(file.tellg() - lost);
-	}
+// 	if (ret != -1) {
+// 		std::streampos lost = s - ret;
+// 		stream->seekg(stream->tellg() - lost);
+// 	}
 
-	// std::cerr << ret << "\n";
-}
+// 	// dout << ret << "\n";
+// }
 
 void	Response::readFile() {
 
 	if (!_is_cgi)
 	{
 		buffer_body.resize(1024);
-		file.read(buffer_body.data, buffer_body.size);
-		std::streamsize s = ((file) ? buffer_body.size : file.gcount());
+		_body->read(buffer_body.data, buffer_body.size);
+		std::streamsize s = ((*_body) ? buffer_body.size : _body->gcount());
 		buffer_body.resize(s);
 	}
 	else
@@ -290,19 +297,17 @@ void	Response::readFile() {
 	}
 }
 
-std::string errorPage(const StatusCodeException & e) {
-	std::ostringstream header("");
-	std::ostringstream body("");
-	
-	header << "HTTP/1.1 " << e.getStatusCode() << " " << reasonPhrase(e.getStatusCode()) << CRLF;
-	header << "Connection: keep-alive" << CRLF;
-	header << "Content-Type: text/html" << CRLF;
-	if (e.getLocation() != ""){
-		header << "Location: " << e.getLocation() <<  CRLF;
-		std::cerr << "Location: " << e.getLocation() <<  CRLF;
-	}
-	header << "Date: " << Utils::getDate() <<  CRLF;
-	header << "Server: " << SERVER_NAME << CRLF;
+const Config * Response::getServerConfig() const {
+	return this->server;
+}
+
+void Response::setServerConfig(const Config * config) {
+	this->server = config;
+}
+
+std::stringstream * errorTemplate(const StatusCodeException & e) {
+	std::stringstream * alloc = new std::stringstream("");
+	std::stringstream & body = *alloc;
 
 	body << "<!DOCTYPE html>\n" ;
 	body << "<html lang=\"en\">\n";
@@ -315,11 +320,51 @@ std::string errorPage(const StatusCodeException & e) {
 	body << "<h4 style=\"text-align:center\">WebServer</h4>\n";
 	body << "</body>\n";
 
-	header << "Content-Length: " << body.str().length() << CRLF << CRLF;
+	return &body;
+}
 
-	header << body.str();
 
-	return header.str();
+void Response::setErrorPage(const StatusCodeException & e, const Config * location) {
+	status = e.getStatusCode();
+
+	_headers["Connection"] = "keep-alive";
+	_headers["Content-Type"] = "text/html";
+	_headers["Date"] = Utils::getDate();
+	_headers["Server"] = SERVER_NAME;
+
+	if (e.getLocation() != ""){
+		_headers["Location"] = e.getLocation();
+		dout << "Location: " << e.getLocation() <<  CRLF;
+	}
+
+	std::stringstream * err;
+
+	const std::map<int, std::string> & error_page = location->error_page.empty() ? server->error_page : location->error_page;
+	std::fstream * errPage = NULL;
+
+	if (error_page.find(status) != error_page.end()) {
+		errPage = new std::fstream();
+		std::string filename = location->root;
+
+		filename += error_page.find(status)->second;
+		errPage->open(filename.c_str());
+	}
+
+	delete _body;
+	if (!errPage || !errPage->is_open()) {
+		_body = errorTemplate(e);
+		if (errPage) {
+			delete errPage;
+	}
+	} else {
+		_body = errPage;
+	}
+
+	// _body->seekg(0, _body->beg);
+	// std::cout << "Content-Length: " << _body->tellp() << std::endl;
+	// _headers["Content-Length"] = Utils::to_str(_body->tellp());
+	_headers["Transfer-Encoding"] = "chunked";
+
 }
 
 char* formatdate(char* str, time_t val)

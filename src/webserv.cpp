@@ -11,28 +11,6 @@ void error(std::string message) {
 	return exit(EXIT_FAILURE);
 }
 
-static std::string getResponse(std::string request) {
-	
-	std::ostringstream response("");
-	std::string response_body = "<html>\n"
-					"<body>\n"
-					"<h1>Hello, World!</h1>\n"
-					"</body>\n"
-					"</html>";
-
-	
-	response	<< "HTTP/1.1 200 OK\n"
-			<< "Date: " << Utils::getDate() << "\n"
-			<< "Server: WebServer (MacOs)\n"
-			// << "Content-Length: " << response_body.length() << "\n"
-			<< "Last-Modified: Wed, 22 Jul 2009 19:15:56 GMT\n"
-			<< "Transfer-Encoding: chunked\n"
-			<< "Content-Type: text/html\n"
-			<< "Connection: Closed\n\n"
-			<< Utils::chuncked_transfer_encoding(response_body);
-	return response.str();
-}
-
 void setup_server(Config & conf) {
 	int opt = 1;
 
@@ -49,6 +27,13 @@ void handle_signal(int sig) {
 	std::cout << "SIGNAL " << sig << std::endl;
 }
 
+void exit_program(int sig) {
+	for (std::vector<Config>::const_iterator it = servers.begin(); it != servers.end(); ++it) {
+		it->socket->close();
+		std::cerr << "Close Socket: " << it->socket->getFD() << std::endl;
+	}
+	return exit(EXIT_SUCCESS);
+}
 
 Socket * isSocket(int fd) {
 	for (std::vector<Config>::const_iterator it = servers.begin(); it != servers.end(); ++it) {
@@ -69,15 +54,16 @@ Socket * socketExists(const std::vector<Config>::iterator & curr_it) {
 	return NULL;
 }
 
-const Config * getConnectionServerConfig(const Socket * socket, const Request & request) {
+const Config * getConnectionServerConfig(const Socket * socket, const Request * request) {
 	const Config * default_server = NULL;
 
 	for (std::vector<Config>::const_iterator it = servers.begin(); it != servers.end(); ++it) {
 		if (it->host == socket->getHost() && it->port == socket->getPort()) {
 			if (default_server == NULL) {
 				default_server = &(*it);
+				if (request == NULL) break;
 			}
-			if (it->server_name == request.getHeader("Host")) {
+			if (it->server_name == request->getHeader("Host")) {
 				return &(*it);
 			}
 		}
@@ -88,6 +74,7 @@ const Config * getConnectionServerConfig(const Socket * socket, const Request & 
 int main(int argc, char *argv[]) {
 	std::vector<pollfd> fds;
 	std::map<int, Response*> responses;
+	std::map<int, Request*> requests;
 	std::map<int, Socket> connections;
 
 	open_config_file(argc, argv);
@@ -106,6 +93,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	signal(13, handle_signal);
+	signal(1, exit_program);
+	signal(2, exit_program);
 
 	while (true) {
 
@@ -146,35 +135,34 @@ int main(int argc, char *argv[]) {
 
 				Socket & connection = connections[fds[i].fd];
 				bool close = false;
-				Response * response;
+				Response * response = NULL;
+				Request * request = NULL;
 				// connection.setFD(fds[i].fd);
 				// connection->setState(NonBlockingSocket);
 
 				if (fds[i].revents & POLLIN) {
-
-					std::string message = connection.receive();
-					
-
-					std::cerr << "-----\n" << message << "-----\n" << std::endl;
-
+					// std::cerr << message << std::endl;
 					try {
-						Request request(message);
-						if (request.getHeader("Host") == "") {
-							throw StatusCodeException(HttpStatus::BadRequest);
+						if (requests.find(connection.getFD()) != requests.end()) {
+							request = requests.find(connection.getFD())->second;
+							request->receive(connection);
+						} else {
+							request = new Request(connection);
+							requests.insert(std::make_pair(connection.getFD(), request));
 						}
 
-						response = new Response(request, getConnectionServerConfig(connection.getSocket(), request));
-						
-						std::string str = response->HeadertoString();
-
-						// responses.insert(std::make_pair(connection.getFD(), response));
-						responses[connection.getFD()] = response;
-						
-						response->buffer_header.setData(str.c_str(), str.length());
-						
-						fds[i].events = POLLOUT;
+						if (request->isFinished()) {
+							std::cerr << "Request Succesful" << std::endl;
+							response = new Response(*request, getConnectionServerConfig(connection.getSocket(), request));
 					}
-					catch(const ListingException & e){
+					} catch (const StatusCodeException & e) {
+						std::cerr << "Caught exception: " << e.getStatusCode() << " " << e.what() << std::endl;
+						response = new Response();
+
+						response->setServerConfig(getConnectionServerConfig(connection.getSocket(), NULL));
+
+						response->setErrorPage(e, response->getServerConfig());
+					} catch(const ListingException & e){
 						response = new Response();
 
 						std::string data = listingPage(e);
@@ -183,31 +171,35 @@ int main(int argc, char *argv[]) {
 						responses[connection.getFD()] = response;
 						fds[i].events = POLLOUT;
 					}
-					catch(const StatusCodeException & e) {
-						response = new Response();
 
-						std::string data = errorPage(e);
+					if (response) {
+						std::string data = response->HeadertoString();
+
 						response->buffer_header.setData(data.c_str(), data.length());
-
-						// responses.insert(std::make_pair(connection.getFD(), response));
-						responses[connection.getFD()] = response;
+						responses.insert(std::make_pair(connection.getFD(), response));
+						requests.erase(connection.getFD());
+						delete request;
 						fds[i].events = POLLOUT;
 					}
 				}
 
-				response = responses.find(connection.getFD())->second;
+				if (responses.find(connection.getFD()) != responses.end()) {
+					response = responses.find(connection.getFD())->second;
+				}
 
 				if (fds[i].revents & POLLOUT) {
 					
 					
-					if ((response->buffer_body.length() == 0 && (response->is_cgi()  || response->getFile().is_open()))) {
+					if (response->buffer_body.length() == 0 && (response->is_cgi() || !response->getFile()->eof())) {
 						response->readFile();
 					}
 					if (response->buffer_body.length() || response->buffer_header.length())
 						connection.send(*response);
 						
-					if (!response->is_cgi() && ((!response->getFile().is_open() || (response->getFile().is_open() && !response->getFile())) && response->buffer_body.length() == 0)) {
+					if (!response->is_cgi() && response->getFile()->eof() && response->buffer_header.length() == 0 && response->buffer_body.length() == 0) {
 						// close = true;
+						responses.erase(connection.getFD());
+
 						fds[i].events = POLLIN;
 						if (response->getHeader("Transfer-Encoding") == "chunked") {
 				        	// write(2, "0\r\n\r\n", 5);
@@ -216,9 +208,11 @@ int main(int argc, char *argv[]) {
 					}
 				}
 				if (fds[i].revents & POLLHUP) {
+					std::cerr << "POLLHUP " << connection.getFD() << std::endl;
 					close = true;
 				}
 				if (close) {
+					std::cerr << "Close " << connection.getFD() << std::endl;
 					connection.close();
 					fds.erase(fds.begin() + i);
 					--i;
@@ -229,10 +223,6 @@ int main(int argc, char *argv[]) {
 			}
 		}
 	}
-	for (std::vector<Config>::const_iterator it = servers.begin(); it != servers.end(); ++it) {
-		it->socket->close();
-	}
-
 	// Bind the socket to a IP / port
 	// Mark the socket for listening in
 	// Accept a call

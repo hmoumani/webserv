@@ -94,17 +94,8 @@ Socket Socket::accept() const {
     return sock;
 }
 
-std::string Socket::receive() const {
-    char buffer[BUFFER_SIZE + 1];
-    std::string message;
-    int bytesRead;
-
-    while ((bytesRead = recv(_fd, buffer, BUFFER_SIZE, 0)) > 0) {
-        buffer[bytesRead] = 0;
-        message += buffer;
-    }
-
-    return message;
+ssize_t Socket::recv(void *buf, size_t n) const {
+    return ::recv(_fd, buf, n, 0);
 }
 
 // void Socket::send(std::vector<char> vec) const {

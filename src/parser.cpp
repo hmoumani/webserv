@@ -14,11 +14,11 @@ enum ParseError {
 
 static const size_t NUM_DIRECTIVES = 14;
 static const std::string directives[] = {
-    "server", "location", "listen", "server_name", "error_page", // Server directives
-    "max_body_size", "root", "listing", "index", "http_method", "http_redirection",  // Server & Location directives
+    "server", "location", "listen", "server_name", // Server directives
+    "error_page", "max_body_size", "root", "listing", "index", "http_method", "http_redirection",  // Server & Location directives
     "redirect", "cgi_pass", "upload_pass"};  // Location directives
 
-static const size_t server_index = 5;
+static const size_t server_index = 4;
 static const size_t location_index = 11;
 
 static char tokens[] = {'{', '}', ';'};
@@ -200,6 +200,7 @@ static void parse(std::ifstream & file) {
         Config * config = curr_location ? curr_location : curr_server;
 
         if (directive[0] == "http_method" && directive.size() > 2) {
+            config->methods.clear();
             for (int i = 1; i < directive.size() - 1; ++i) {
                 Method method = getMethodFromName(directive[i]);
                 if (method == UNKNOWN) {
@@ -210,8 +211,16 @@ static void parse(std::ifstream & file) {
                 config->methods.push_back(method);
             }
         } else if (directive[0] == "index" && directive.size() > 2) {
+            config->index.clear();
             for (int i = 1; i < directive.size() - 1; ++i) {
                 config->index.push_back(directive[i]);
+            }
+        } else if (directive[0] == "error_page" && directive.size() > 3) {
+            for (int i = 1; i < directive.size() - 2; ++i) {
+                if (!isnumber(directive[i])) {
+                    error(INVALID_ERROR_CODE, directive[i]);
+                }
+                config->error_page.insert(make_pair(std::atoi(directive[i].c_str()), directive[directive.size() - 2]));
             }
         } else if (directive.size() == 1 && directive[0] == "}") {
             if (curr_location) {
@@ -233,13 +242,14 @@ static void parse(std::ifstream & file) {
                     curr_server->location.insert(make_pair(directive[1], Config(*curr_server)));
                     curr_location = &curr_server->location[directive[1]];
                     curr_location->uri = directive[1];
+                    curr_location->error_page.clear();
                 } else {
                     error(DUPLICATE_LOCATION, directive[1]);
                 }
             } else if (directive[0] == "server_name") {
                 config->server_name = directive[1];
             } else if (directive[0] == "root") {
-                config->root = directive[1][directive[1].length() - 1] != '/' ? directive[1] + "/" : directive[1];
+                config->root = directive[1];
             } else if (directive[0] == "listing") {
                 config->listing = directive[1] == "on";
             } else if (directive[0] == "max_body_size") {
@@ -258,11 +268,6 @@ static void parse(std::ifstream & file) {
                     error(INVALID_PORT, directive[2]);
                 }
                 config->port = std::atoi(directive[2].c_str());
-            } else if (directive[0] == "error_page") {
-                if (!isnumber(directive[1])) {
-                    error(INVALID_ERROR_CODE, directive[1]);
-                }
-                config->error_page.insert(make_pair(std::atoi(directive[1].c_str()), directive[2]));
             } else if (directive[0] == "redirect") {
                 if (!isnumber(directive[1])) {
                     error(INVALID_STATUS_CODE, directive[1]);

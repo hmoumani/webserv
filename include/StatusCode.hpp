@@ -16,6 +16,14 @@
 
 /*! Namespace for HTTP status codes and reason phrases.
  */
+
+enum Method {
+	GET,
+	POST,
+	DELETE,
+	UNKNOWN
+};
+
 namespace HttpStatus
 {
 
