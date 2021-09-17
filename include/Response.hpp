@@ -7,7 +7,6 @@
 # include <sys/stat.h>
 # include <unistd.h>
 # include <sstream>
-# include <stdlib.h>
 
 # include "Buffer.hpp"
 # include "Request.hpp"

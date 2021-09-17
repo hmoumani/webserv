@@ -120,17 +120,42 @@ void Response::handleGetRequest(Request const & req, const Config * location, co
 	// if (Utils::getFileExtension(filename) == ".php")
 	if (server->location.find(Utils::getFileExtension(filename)) != server->location.end())
 	{
+		char buff[101] = {0};
 		_is_cgi = true;
 		file.close();
 
+		// std::map<std::string, std::string> env;
+		gethostname(buff, 100);
+		// env.insert(std::make_pair("REQUEST_METHOD", "GET"));
+		// env.insert(std::make_pair("PATH", getenv("PATH")));
+		// env.insert(std::make_pair("TERM", getenv("TERM")));
+		// env.insert(std::make_pair("HOME", getenv("HOME")));
+		// env.insert(std::make_pair("HOSTNAME", hostname));
+		// env.insert(std::make_pair("QUERY_STRING", req.getRequestTarget().substr(req.getRequestTarget().find_first_of('?'))));
+
+		
 		char * const ar[4] = {const_cast<char *>(location->cgi.c_str()), const_cast<char *>(request_path.c_str()), NULL};
 		pipe(fd);
 		pid = fork();
 		if (pid == 0)
 		{
+			std::vector<const char *> v;
+			v.push_back(strdup((std::string("REQUEST_METHOD") + "=" + "GET").c_str()));
+			v.push_back(strdup((std::string("PATH") + "=" + getenv("PATH")).c_str()));
+			v.push_back(strdup((std::string("TERM") + "=" + getenv("TERM")).c_str()));
+			v.push_back(strdup((std::string("HOME") + "=" + getenv("HOME")).c_str()));
+			gethostname(buff, 100);
+			v.push_back(strdup((std::string("HOSTNAME") + "=" + buff).c_str()));
+			getlogin_r(buff, 100);
+			v.push_back(strdup((std::string("USER") + "=" + buff).c_str()));
+			v.push_back(strdup((std::string("SCRIPT_FILENAME") + "=" + request_path).c_str()));
+			size_t n = req.getRequestTarget().find_first_of('?') + 1;
+			n = n == std::string::npos ? req.getRequestTarget().length() : n;
+			v.push_back(strdup((std::string("QUERY_STRING") + "=" + req.getRequestTarget().substr(n)).c_str()));
+			v.push_back(NULL);		
 			close(fd[0]);
 			dup2(fd[1], 1);
-			execve(ar[0], ar, NULL);
+			execve(ar[0], ar, const_cast<char * const *>(v.data()));
 			close(fd[1]);
 			return ;
 		}
@@ -328,7 +353,7 @@ std::string listingPage(const ListingException & e)
 	body << "<html>\n";
 	body << "<head><title>Index of " << e.getReqTarget() << "</title></head>\n";
 	body << "<body bgcolor=\"white\">\n";
-	body << "<h1>Index of " << e.getReqTarget() << "</h1><hr><pre><a href=\"" << e.getReqTarget() << "\">../</a>\n";
+	body << "<h1>Index of " << e.getReqTarget() << "</h1><hr><pre><a href=\"" << e.getReqTarget().substr(0, e.getReqTarget().find_last_of('/', e.getReqTarget().length() - 2)) << "/\">../</a>\n";
 
 	if ((dir = opendir (e.what())) != NULL) {
 		while ((ent = readdir (dir)) != NULL) {
@@ -337,7 +362,7 @@ std::string listingPage(const ListingException & e)
 			std::string file_path = e.getPath() + std::string(ent->d_name);
 			if (!strcmp(".", ent->d_name) || !strcmp("..", ent->d_name) || !(stat(file_path.c_str(), &attr) == 0 && S_ISDIR(attr.st_mode)))
 				continue ;
-			body << "<a href=\"" << ent->d_name << "\">" << ent->d_name << "</a> " << std::setw(70 - strlen(ent->d_name)) << getFileCreationTime(file_path.c_str(), format);
+			body << "<a href=\"" << ent->d_name << "/\">" << ent->d_name << "/</a> " << std::setw(69 - strlen(ent->d_name)) << getFileCreationTime(file_path.c_str(), format);
 			body << "                   -\n";
 		}
 		closedir (dir);
