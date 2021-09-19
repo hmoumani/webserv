@@ -8,10 +8,12 @@
 # include <unistd.h>
 # include <sstream>
 # include <dirent.h>
-
+# include <poll.h>
+# include <ctype.h>
 # include "Buffer.hpp"
 # include "Request.hpp"
 // # include "Socket.hpp"
+# include <algorithm>
 # include "Utils.hpp"
 # include "MimeTypes.hpp"
 #include "Config.hpp"
@@ -56,6 +58,7 @@ class Response : public Message
         void setServerConfig(const Config * config);
         const Config * getServerConfig() const;
         bool is_cgi() const ;
+        std::string listingPage(const ListingException & e);
 
 };
 
@@ -63,6 +66,6 @@ std::stringstream * errorPage(const StatusCodeException & e);
 static const Config * getLocation(const Request & req, const Config * server);
 static const std::string getPathFromUri(const std::string & uri);
 static const void handleRequest(const Request & req, const Config * location);
-std::string listingPage(const ListingException & e);
+void error(std::string message);
 
 #endif

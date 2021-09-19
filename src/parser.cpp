@@ -249,7 +249,7 @@ static void parse(std::ifstream & file) {
             } else if (directive[0] == "server_name") {
                 config->server_name = directive[1];
             } else if (directive[0] == "root") {
-                config->root = directive[1];
+                config->root = directive[1][directive[1].length() - 1] != '/' ? directive[1] + "/" : directive[1];
             } else if (directive[0] == "listing") {
                 config->listing = directive[1] == "on";
             } else if (directive[0] == "max_body_size") {

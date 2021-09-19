@@ -1,11 +1,11 @@
 #include "Response.hpp"
 #include "debug.hpp"
 
-Response::Response() : _is_cgi(false)
+Response::Response() : _is_cgi(false), status(HttpStatus::StatusCode(200))
 {
 }
 
-Response::Response(Response const & src) : _is_cgi(false)
+Response::Response(Response const & src) : _is_cgi(false), status(HttpStatus::StatusCode(200))
 {
 	*this = src;
 }
@@ -130,17 +130,6 @@ void Response::handleGetRequest(Request const & req, const Config * location, co
 		char buff[101] = {0};
 		_is_cgi = true;
 		file->close();
-
-		// std::map<std::string, std::string> env;
-		gethostname(buff, 100);
-		// env.insert(std::make_pair("REQUEST_METHOD", "GET"));
-		// env.insert(std::make_pair("PATH", getenv("PATH")));
-		// env.insert(std::make_pair("TERM", getenv("TERM")));
-		// env.insert(std::make_pair("HOME", getenv("HOME")));
-		// env.insert(std::make_pair("HOSTNAME", hostname));
-		// env.insert(std::make_pair("QUERY_STRING", req.getRequestTarget().substr(req.getRequestTarget().find_first_of('?'))));
-
-		
 		char * const ar[4] = {const_cast<char *>(location->cgi.c_str()), const_cast<char *>(request_path.c_str()), NULL};
 		pipe(fd);
 		pid = fork();
@@ -195,13 +184,6 @@ void Response::handleDeleteRequest(Request const & req, const Config * location)
 std::string Response::HeadertoString()
 {
 	std::ostringstream response("");
-	// Buffer buff;
-
-	response << "HTTP/1.1 " << this->status << " " << reasonPhrase(this->status) << CRLF;
-	for (std::map<std::string, std::string>::const_iterator it = _headers.begin(); it != _headers.end(); ++it)
-	{
-		response << it->first << ": " << it->second << CRLF;
-	}
 
 	if (is_cgi())
 	{
@@ -212,37 +194,40 @@ std::string Response::HeadertoString()
 		size_t pos;
 		while (true)
 		{
+			pollfd pfd = (pollfd){fd[0], POLLIN};
+			int pret = poll(&pfd, 1, -1);
+			if(pret == -1)
+				error("poll failed");
 			ret = read(fd[0], s + total, 2049 - total);
 			total += ret;
 			s[total] = 0;
-			if ((pos = std::string(s).find("\r\n\r\n")) != std::string::npos || (pos = std::string(s).find("\n\n")) != std::string::npos )
+			if ((pos = std::string(s).find("\r\n\r\n")) != std::string::npos || (pos = std::string(s).find("\n\n")) != std::string::npos)
 				break ;
 		}
-		// size_t pos = std::string(s).find("\r\n\r\n");
-		std::string token = std::string(s).substr(0, pos);
-		buffer_body.setData(std::string(s).substr(pos).c_str(), std::string(s).substr(pos).length());
-		response << token << CRLF;
 
-		// strcpy(buffer_body.data, std::string(buff.data).substr(0, pos).c_str());
+		buffer_body.setData(std::string(s).substr(pos).c_str(), std::string(s).substr(pos).length());
+		std::istringstream iss(s);
+		std::string line;
+		while (std::getline(iss, line))
+		{
+			size_t start = line.find_first_of(':');
+			size_t end = line.find_first_of(':') + 2;
+			if (start == std::string::npos || end == std::string::npos)
+				continue ;
+			std::cout << "line  :" << line << std::endl;
+			std::cout << "name : " << line.substr(0, start); 
+			_headers[line.substr(0, start)] = line.substr(line.find_first_of(':') + 2);
+		}
+
 	}
-	// if (is_cgi())
-	// {
-	// 	while (true)
-	// 	{
-	// 		int ret = read(fd[0], &c, 1);
-	// 		std::cout << ret << std::endl;
-	// 		if ((c == '\n' && header_line.length() == 0) || ret <= 0)
-	// 			break ;
-	// 		if (c == '\n')
-	// 		{
-	// 			response << header_line << CRLF;
-	// 			header_line.clear();
-	// 		}
-	// 		header_line += c;
-	// 	}
-	// }
-	// if (!is_cgi())
-		response << CRLF;
+	response << "HTTP/1.1 " << this->status << " " << reasonPhrase(this->status) << CRLF;
+	for (std::map<std::string, std::string>::iterator it = _headers.begin(); it != _headers.end(); ++it)
+	{
+		std::string str = it->first;
+		// std::transform(str.begin(), str.end(), str.begin(), ::tolower );
+		response << it->first << ": " << it->second << CRLF;
+	}
+	response << CRLF;
 	return (response.str());
 }
 
@@ -281,9 +266,13 @@ void	Response::readFile() {
 	}
 	else
 	{
+		pollfd pfd = (pollfd){fd[0], POLLIN};
 		close(fd[1]);
 		// waitpid(pid, NULL, 0);
 		buffer_body.resize(1024);
+		int pret = poll(&pfd, 1, -1);
+		if (pret == -1)
+			error("poll failed");
 		int ret = read(fd[0], buffer_body.data, 1024);
 		if (ret == 0) {
 			_is_cgi = false;
@@ -291,9 +280,6 @@ void	Response::readFile() {
 		if (ret != 1024) {
 			buffer_body.resize(ret);
 		}
-		// buffer << std::hex << ret;
-		// buffer_body.data[ret] = 0;
-		// printf("%d -> %s", ret,buffer.data);
 	}
 }
 
@@ -381,24 +367,29 @@ char *getFileCreationTime(const char *path, char *format)
 }
 
 
-std::string listingPage(const ListingException & e)
+std::string Response::listingPage(const ListingException & e)
 {
-	std::ostringstream header("");
-	std::ostringstream body("");
+	std::stringstream header("");
+	std::stringstream *body = new std::stringstream("");
 
-	header << "HTTP/1.1 " << 200 << " " << "OK" << CRLF;
-	header << "Connection: keep-alive" << CRLF;
-	header << "Content-Type: text/html" << CRLF;
-	header << "Date: " << Utils::getDate() <<  CRLF;
-	header << "Server: " << SERVER_NAME << CRLF ;
+	// header << "HTTP/1.1 " << 200 << " " << "OK" << CRLF;
+	// header << "Connection: keep-alive" << CRLF;
+	// header << "Content-Type: text/html" << CRLF;
+	// header << "Date: " << Utils::getDate() <<  CRLF;
+	// header << "Server: " << SERVER_NAME << CRLF ;
+	_headers["Connection"] = "keep-alive";
+	_headers["Content-Type"] = "text/html";
+	_headers["Date"] = Utils::getDate();
+	_headers["Server"] = SERVER_NAME;
+	_headers["Transfer-Encoding"] = "chunked";
 
 	DIR *dir;
 	struct dirent *ent;
-	body << "<!DOCTYPE html>\n" ;
-	body << "<html>\n";
-	body << "<head><title>Index of " << e.getReqTarget() << "</title></head>\n";
-	body << "<body bgcolor=\"white\">\n";
-	body << "<h1>Index of " << e.getReqTarget() << "</h1><hr><pre><a href=\"" << e.getReqTarget().substr(0, e.getReqTarget().find_last_of('/', e.getReqTarget().length() - 2)) << "/\">../</a>\n";
+	*body << "<!DOCTYPE html>\n" ;
+	*body << "<html>\n";
+	*body << "<head><title>Index of " << e.getReqTarget() << "</title></head>\n";
+	*body << "<body bgcolor=\"white\">\n";
+	*body << "<h1>Index of " << e.getReqTarget() << "</h1><hr><pre><a href=\"" << e.getReqTarget().substr(0, e.getReqTarget().find_last_of('/', e.getReqTarget().length() - 2)) << "/\">../</a>\n";
 
 	if ((dir = opendir (e.what())) != NULL) {
 		while ((ent = readdir (dir)) != NULL) {
@@ -407,8 +398,8 @@ std::string listingPage(const ListingException & e)
 			std::string file_path = e.getPath() + std::string(ent->d_name);
 			if (!strcmp(".", ent->d_name) || !strcmp("..", ent->d_name) || !(stat(file_path.c_str(), &attr) == 0 && S_ISDIR(attr.st_mode)))
 				continue ;
-			body << "<a href=\"" << ent->d_name << "/\">" << ent->d_name << "/</a> " << std::setw(69 - strlen(ent->d_name)) << getFileCreationTime(file_path.c_str(), format);
-			body << "                   -\n";
+			*body << "<a href=\"" << ent->d_name << "/\">" << ent->d_name << "/</a> " << std::setw(69 - strlen(ent->d_name)) << getFileCreationTime(file_path.c_str(), format);
+			*body << "                   -\n";
 		}
 		closedir (dir);
 	}
@@ -420,16 +411,17 @@ std::string listingPage(const ListingException & e)
 			std::string file_path = e.getPath() + std::string(ent->d_name);
 			if (!strcmp(".", ent->d_name) || !strcmp("..", ent->d_name) || (stat(file_path.c_str(), &attr) == 0 && S_ISDIR(attr.st_mode)))
 				continue ;
-			body << "<a href=\"" << ent->d_name << "\">" << ent->d_name << "</a> " << std::setw(70 - strlen(ent->d_name)) << getFileCreationTime(file_path.c_str(), format);
-			body << std::setw(20);
-			body << attr.st_size;
-			body << "\n";
+			*body << "<a href=\"" << ent->d_name << "\">" << ent->d_name << "</a> " << std::setw(70 - strlen(ent->d_name)) << getFileCreationTime(file_path.c_str(), format);
+			*body << std::setw(20);
+			*body << attr.st_size;
+			*body << "\n";
 		}
 		closedir (dir);
 	}
-	body << "</pre><hr></body>\n</html>\n";
-	header << "Content-Length: " << body.str().length() << CRLF << CRLF;
-	header << body.str();
+	*body << "</pre><hr></body>\n</html>\n";
+	// header << "Content-Length: " << (*body).str().length() << CRLF << CRLF;
+	header << (*body).str();
+	_body = body;
 	return header.str();
 }
 

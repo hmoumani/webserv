@@ -165,7 +165,7 @@ int main(int argc, char *argv[]) {
 					} catch(const ListingException & e){
 						response = new Response();
 
-						std::string data = listingPage(e);
+						std::string data = response->listingPage(e);
 						response->buffer_header.setData(data.c_str(), data.length());
 						// responses.insert(std::make_pair(connection.getFD(), response));
 						responses[connection.getFD()] = response;
