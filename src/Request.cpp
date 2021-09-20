@@ -14,9 +14,8 @@ Method getMethodFromName(const std::string & method) {
     return UNKNOWN;
 }
 
-
-Request::Request(const Socket & connection) throw(StatusCodeException) {
-
+void Request::reset() {
+    Message::reset();
     _parser.current_stat = _parser.METHOD;
     _parser.cr = false;
 
@@ -24,6 +23,13 @@ Request::Request(const Socket & connection) throw(StatusCodeException) {
     _bparser.cr = false;
     _bparser.end = false;
 
+}
+Request::Request() {
+    reset();
+}
+Request::Request(const Socket & connection) throw(StatusCodeException) {
+
+    reset();
 
     size_t max_request_size = 16*1024;
 
@@ -34,9 +40,10 @@ Request::Request(const Socket & connection) throw(StatusCodeException) {
 
 void Request::receive(const Socket & connection) {
     ssize_t bytesRead;
-    char buffer[BUFFER_SIZE + 1];
+    char buffer[BUFFER_SIZE];
 
     bytesRead = connection.recv(buffer, BUFFER_SIZE);
+    write(2, buffer, bytesRead);
     parse(buffer, bytesRead);
 
 }
@@ -51,36 +58,106 @@ static std::string & trim(std::string & str) {
     return str;
 }
 
+static const Config * getLocationFromRequest(const Request & req, const Config * server) {
+	size_t len = 0;
+	const Config * loc = server;
+	if (server->location.find(Utils::getFileExtension(req.getFilename())) != server->location.end()) {
+		loc = &server->location.find(Utils::getFileExtension(req.getFilename()))->second;
+	} else {
+		for (std::map<std::string, Config>::const_iterator it = server->location.begin(); it != server->location.end(); ++it) {
+			const std::string path = getPathFromUri(req.getRequestTarget());
+			if (it->first.length() <= path.length() && it->first.length() > len) {
+				if (path.compare(0, it->first.length(), it->first.c_str()) == 0) {
+					len = it->first.length();
+					loc = &it->second;
+				}
+			}
+		}
+	}
+	return loc;
+}
+
+const std::string getPathFromUri(const std::string & uri) {
+	return uri.substr(0, uri.find_first_of('?'));
+}
+
+static const std::string getRequestedPath(const std::string & target, const Config * location) {
+	const std::string path = getPathFromUri(target);
+	struct stat buffer;
+
+	std::string requested_path = location->root;
+
+	requested_path += location->uri != "" ? path.substr(location->uri.length()) : path;
+	// dout << "SUBSTR: " << location->uri << " " << location->uri.length() << " " << path.substr(location->uri.length()) << std::endl;
+
+	std::cerr << "Requested File: " << requested_path << std::endl;
+	if (requested_path[requested_path.length() - 1] != '/' && stat(requested_path.c_str(), &buffer) == 0 && S_ISDIR(buffer.st_mode)) {
+		throw StatusCodeException(HttpStatus::MovedPermanently, path + '/', location);
+	}
+
+	return requested_path;
+}
+
+static const std::string getIndexFile(const Config * location, const std::string & filename, const std::string & req_taget)
+{
+	for (int i = 0; i < location->index.size(); ++i) {
+		std::string file = (filename + location->index[i]);
+		if (access(file.c_str(), F_OK))
+			continue ;
+		struct stat buffer;
+		stat (file.c_str(), &buffer);
+		if (!(buffer.st_mode & S_IROTH))
+			throw StatusCodeException(HttpStatus::Forbidden, location);
+		else
+			return (file);
+	}
+	if (!location->listing)
+		throw StatusCodeException(HttpStatus::Forbidden, location);
+	throw ListingException(filename, req_taget);
+}
+
+void Request::checkRequestTarget() {
+	_filename = getRequestedPath(_request_target, _server);
+    struct stat fileStat;
+    stat (_filename.c_str(), &fileStat);
+	Utils::fileStat(_filename, fileStat, _server);
+	if (S_ISDIR(fileStat.st_mode)) {
+		_filename = getIndexFile(_server, _filename, _request_target);
+	}
+    _location = getLocationFromRequest(*this, _server);
+
+}
+
 bool Request::parse(const char * buff, size_t size) {
     size_t i;
 
     for (i = 0; i < size; i++) {
         if (_parser.cr && buff[i] == '\n') {
             if (_parser.current_stat != _parser.HTTP_VER && _parser.current_stat != _parser.HEADER_KEY && _parser.current_stat != _parser.HEADER_VALUE) {
-                throw StatusCodeException(HttpStatus::BadRequest);
+                throw StatusCodeException(HttpStatus::BadRequest, _server);
             }
             if (_parser.current_stat == _parser.HEADER_KEY) {
                 _parser.str.clear();
             }
         }
         if ((_parser.key.size() + _parser.str.size()) > max_size[_parser.current_stat]) {
-            throw StatusCodeException(HttpStatus::BadRequest);
+            throw StatusCodeException(HttpStatus::BadRequest, _server);
         } else if (_parser.current_stat == _parser.METHOD && buff[i] == ' ') {
             _method = getMethodFromName(_parser.str);
             if (_method == UNKNOWN) {
-                throw StatusCodeException(HttpStatus::BadRequest);
+                throw StatusCodeException(HttpStatus::BadRequest, _server);
             }
             _parser.current_stat = _parser.REQUEST_TARGET;
         } else if (_parser.current_stat == _parser.REQUEST_TARGET && buff[i] == ' ') {
             if (_parser.str.empty() || _parser.str[0] != '/') {
-                throw StatusCodeException(HttpStatus::BadRequest);
+                throw StatusCodeException(HttpStatus::BadRequest, _server);
             }
             _request_target = _parser.str;
             _parser.current_stat = _parser.HTTP_VER;
         } else if (_parser.current_stat == _parser.HTTP_VER && _parser.cr && buff[i] == '\n') {
             _http_version = _parser.str;
             if (_http_version != "HTTP/1.1") {
-                throw StatusCodeException(HttpStatus::BadRequest);
+                throw StatusCodeException(HttpStatus::BadRequest, _server);
             }
             _parser.current_stat = _parser.HEADER_KEY;
         } else if (_parser.current_stat == _parser.HEADER_KEY && buff[i] == ':') {
@@ -88,6 +165,9 @@ bool Request::parse(const char * buff, size_t size) {
             _parser.current_stat = _parser.HEADER_VALUE;
         } else if (_parser.current_stat == _parser.HEADER_VALUE && _parser.cr && buff[i] == '\n') {
             insert_header(_parser.key, trim(_parser.str));
+            if (_parser.key == "Host") {
+                _server = getConnectionServerConfig(_server->host, _server->port, getHeader("Host"));
+            }
             _parser.current_stat = _parser.HEADER_KEY;
             _parser.key.clear();
         } else if (_parser.current_stat == _parser.HEADER_KEY && _parser.str.empty() && _parser.cr && buff[i] == '\n') {
@@ -95,6 +175,10 @@ bool Request::parse(const char * buff, size_t size) {
             if (_headers.find("Transfer-Encoding") == _headers.end() && _headers.find("Content-Length") == _headers.end()) {
                 _bparser.end = true;
             }
+            if (_headers.find("Host") == _headers.end()) {
+                throw StatusCodeException(HttpStatus::BadRequest, _server);
+            }
+            checkRequestTarget();
         } else if (_parser.current_stat == _parser.BODY) {
             size_t s = receiveBody(buff + i, size - i);
             i += s;
@@ -114,7 +198,7 @@ bool Request::parse(const char * buff, size_t size) {
         _parser.str.clear();
     }
     if (_parser.str.size() > max_size[_parser.current_stat]) {
-        throw StatusCodeException(HttpStatus::BadRequest);
+        throw StatusCodeException(HttpStatus::BadRequest, _server);
     }
     return false;
 }
@@ -159,7 +243,7 @@ size_t Request::receiveBody(const char * buff, size_t size) {
                     last = last == std::string::npos ? _bparser.str.length() : last;
                     _bparser.str = _bparser.str.substr(0, last);
                     if (!isValidHex(_bparser.str)) {
-                        throw StatusCodeException(HttpStatus::BadRequest);
+                        throw StatusCodeException(HttpStatus::BadRequest, _server);
                     }
                     ss << std::hex << _bparser.str;
                     ss >> _bparser.len;
@@ -195,7 +279,7 @@ size_t Request::receiveBody(const char * buff, size_t size) {
                 return 0;
             }
         } else {
-            throw StatusCodeException(HttpStatus::BadRequest);
+            throw StatusCodeException(HttpStatus::BadRequest, _server);
         }
     } else {
         _bparser.end = true;
@@ -209,8 +293,7 @@ void Request::openBodyFile() {
     filename << "/tmp/" << std::setfill('0') << std::setw(10) << file_id++;
     std::cerr << "body filename: " << filename.str() << std::endl;
     std::cerr << "Body: " << body_ss->str() << std::endl;
-    _body = new std::fstream(filename.str(), std::fstream::in | std::fstream::out | std::fstream::trunc);
-
+    _body = new std::fstream(filename.str().c_str(), std::fstream::in | std::fstream::out | std::fstream::trunc);
     // _body->write("Hello", 5);
     
     _body->write(body_ss->str().c_str(), body_ss->str().length());
@@ -259,3 +342,6 @@ const std::string & Request::getHTTPVersion() const {
     return this->_http_version;
 }
 
+const std::string & Request::getFilename() const {
+    return _filename;
+}

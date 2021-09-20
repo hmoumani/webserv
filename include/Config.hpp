@@ -6,7 +6,7 @@
 #include <string>
 #include <map>
 #include <vector>
-#include "Request.hpp"
+// #include "Request.hpp"
 #include "StatusCode.hpp"
 #include <iostream>
 #include <fstream>
@@ -44,5 +44,9 @@ public:
     Socket *socket;
     std::string uri;
 };
+
+const Config * getConnectionServerConfig(const std::string & hostname, const int port, const std::string & server_name);
+
+extern std::vector<Config> servers;
 
 #endif

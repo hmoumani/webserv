@@ -7,9 +7,10 @@
 #include <map>
 #include <sstream>
 #include <fstream>
+#include "Config.hpp"
 
 // #include "webserv.hpp"
-
+class Config;
 struct ci_less : std::binary_function<std::string, std::string, bool>
   {
     // case-independent (ci) compare_less binary function
@@ -34,6 +35,10 @@ protected:
 	std::map<std::string, std::string, ci_less> _headers;
 	std::iostream * _body;
 	bool _isBodyFile;
+
+	const Config * _server;
+	const Config * _location;
+
 public:
 	Message();
 	Message(const std::string & message);
@@ -43,6 +48,11 @@ public:
 	const std::iostream * getBody() const; 
 	void insert_header(std::string const & key, std::string const & val);
 
+	void setServerConfig(const Config * config);
+	const Config * getServerConfig() const;
+
+	const Config * getLocation() const;
+	void reset();
 	// std::streampos getBodySize() const;
 };
 

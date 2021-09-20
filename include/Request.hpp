@@ -35,25 +35,36 @@ private:
     } _bparser;
     static const size_t max_size[];
     static size_t file_id;
+
+    std::string _filename;
+
     bool parse(const char * buff, size_t size);
     size_t receiveBody(const char * buff, size_t size);
     void openBodyFile();
+    void checkRequestTarget();
+
 
 public:
+    Request();
+
     Request(const Socket & connection) throw (StatusCodeException);
     ~Request();
 
     const Method getMethod() const;
     const std::string & getRequestTarget() const;
     const std::string & getHTTPVersion() const;
+    const std::string & getFilename() const;
 
     bool isFinished() const;
     void receive(const Socket & connection);
+    void reset();
+
 
 
 };
 
 Method getMethodFromName(const std::string & method);
+const std::string getPathFromUri(const std::string & uri);
 
 
 #endif

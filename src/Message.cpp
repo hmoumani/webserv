@@ -1,8 +1,8 @@
 #include "Message.hpp"
 
 Message::Message() {
-    _body = new std::stringstream();
-    _isBodyFile = false;
+    _body = NULL;
+    reset();
 }
 
 // static void trim(std::string & str) {
@@ -80,5 +80,25 @@ void Message::insert_header(std::string const & key, std::string const & val)
     this->_headers.insert(std::pair<std::string, std::string>(key, val));
 }
 
+const Config * Message::getServerConfig() const {
+	return this->_server;
+}
 
+void Message::setServerConfig(const Config * config) {
+	this->_server = config;
+}
 
+const Config * Message::getLocation() const {
+    return _location;
+}
+
+void Message::reset() {
+    _headers.clear();
+    if (_body)
+	    delete _body;
+    _body = new std::stringstream();
+	_isBodyFile = false;
+
+	_server = NULL;
+	_location = NULL;
+}

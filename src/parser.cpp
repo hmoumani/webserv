@@ -1,6 +1,5 @@
 #include "Config.hpp"
-
-std::vector<Config> servers;
+#include "Request.hpp"
 
 static Config * curr_server = NULL;
 static Config * curr_location = NULL;

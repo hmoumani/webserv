@@ -25,20 +25,28 @@
 #include <stdexcept>
 #include <algorithm>
 
-// #include "Socket.hpp"
-// #include "Message.hpp"
-// #include "Request.hpp"
 #include "Response.hpp"
-// #include "MimeTypes.hpp"
 #include "Config.hpp"
-// #include "Utils.hpp"
+
 typedef int sockid_t;
-extern std::vector<Config> servers;
+// extern std::vector<Config> servers;
+
 
 void error(std::string message);
 void open_config_file(int argc, char *argv[]);
 
+struct Connection {
+    Socket sock;
+    const Socket & parent;
+    Request request;
+    Response response;
+    // Connection() {};
+    Connection(const Socket & p) : parent(p) {};
+    // Connection(const Connection & c) : sock(c.sock), parent(c.parent), request(c.request), response(c.response) {};
+    ~Connection() {};
+};
 
+std::map<int, Connection *> connections;
 // int sockfd;
 // sockaddr_in address;
 #endif

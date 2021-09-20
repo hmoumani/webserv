@@ -1,10 +1,10 @@
 #include "Socket.hpp"
 
-Socket::Socket() : _fd (-1), socket(NULL) {
+Socket::Socket() : _fd (-1) {
     memset(&_address, 0, sizeof(_address));
 }
 
-Socket::Socket(int domain, int type, int protocol) : socket(NULL) {
+Socket::Socket(int domain, int type, int protocol) {
     create(domain, type, protocol);
 }
 
@@ -145,12 +145,4 @@ std::string Socket::getHost() const {
 
 in_port_t Socket::getPort() const {
     return ntohs(_address.sin_port);
-}
-
-void Socket::setSocket(Socket * sock) {
-    socket = sock;
-}
-
-const Socket * Socket::getSocket() const {
-    return socket;
 }

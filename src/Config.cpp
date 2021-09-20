@@ -1,5 +1,7 @@
 #include "Config.hpp"
 
+std::vector<Config> servers;
+
 Config::Config() {
     char *cwd = getcwd(NULL, 0);
     port = 80;
@@ -29,6 +31,24 @@ Config::Config(const Config & config) {
     socket = config.socket;
     uri = config.uri;
 }
+
+const Config * getConnectionServerConfig(const std::string & hostname, const int port, const std::string & server_name) {
+	const Config * default_server = NULL;
+
+	for (std::vector<Config>::const_iterator it = servers.begin(); it != servers.end(); ++it) {
+		if (it->host == hostname && it->port == port) {
+			if (default_server == NULL) {
+				default_server = &(*it);
+				if (server_name.empty()) break;
+			}
+			if (it->server_name == server_name) {
+				return &(*it);
+			}
+		}
+	}
+	return default_server;
+}
+
 
 Config::~Config() {
 }

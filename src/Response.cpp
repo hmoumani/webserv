@@ -16,121 +16,69 @@ Response &Response::operator=(Response const & src)
 {
 	buffer_header = src.buffer_header;
 	buffer_body = src.buffer_body;
+	status = src.status;
+	_server = src._server;
+	_is_cgi = src._is_cgi;
 	return (*this);
 }
 
-Response::Response(Request const & req, const Config * config) : status(HttpStatus::StatusCode(200)), server(config), _is_cgi(false)
-{
-	const Config * location = getLocation(req, config);
-	location = location ?: server;
+void Response::reset() {
+    Message::reset();
+	_is_cgi = false;
+	status = HttpStatus::StatusCode(200);
+	buffer_header.resize(0);
+	buffer_body.resize(0);
+}
+// Response::Response(Request const & req, const Config * config) 
+// {
+// }
 
+void Response::handleRequest(Request const & req) {
+	this->_server = req.getServerConfig();
+	this->_location = req.getLocation();
+	// const Config * location = getLocation(req, _server);
 
-	const std::string request_path = getRequestedPath(req, location);
-
+	// const std::string request_path = getRequestedPath(req, location);
 
 	std::cout <<  "****" << req.getRequestTarget() << std::endl;
-	std::cout << location->root << std::endl;
-	std::cout << request_path << std::endl;
+	std::cout << _location->root << std::endl;
+	std::cout << req.getFilename() << std::endl;
 
 	if (req.getMethod() == GET)
-		this->handleGetRequest(req, location, request_path);
+		this->handleGetRequest(req);
 	if (req.getMethod() == POST)
-		this->handlePostRequest(req, location);
+		this->handlePostRequest(req);
 	if (req.getMethod() == DELETE)
-		this->handleDeleteRequest(req, location);
+		this->handleDeleteRequest(req);
 }
 
-const std::string Response::getRequestedPath(const Request & req, const Config * location) {
-	const std::string path = getPathFromUri(req.getRequestTarget());
-	struct stat buffer;
-
-	std::string requested_path = location->root;
-
-	requested_path += location->uri != "" ? path.substr(location->uri.length()) : path;
-	// dout << "SUBSTR: " << location->uri << " " << location->uri.length() << " " << path.substr(location->uri.length()) << std::endl;
-
-	dout << "Requested File: " << requested_path << std::endl;
-	if (requested_path[requested_path.length() - 1] != '/' && stat(requested_path.c_str(), &buffer) == 0 && S_ISDIR(buffer.st_mode)) {
-		throw StatusCodeException(HttpStatus::MovedPermanently, path + '/');
-	}
-
-	return requested_path;
-}
-
-static const std::string getPathFromUri(const std::string & uri) {
-	return uri.substr(0, uri.find_first_of('?'));
-}
-static const Config * getLocation(const Request & req, const Config * server) {
-	size_t len = 0;
-	const Config * loc = NULL;
-	for (std::map<std::string, Config>::const_iterator it = server->location.begin(); it != server->location.end(); ++it) {
-		const std::string path = getPathFromUri(req.getRequestTarget());
-		if (it->first.length() <= path.length() && it->first.length() > len) {
-			if (path.compare(0, it->first.length(), it->first.c_str()) == 0) {
-				len = it->first.length();
-				loc = &it->second;
-			}
-		}
-	}
-	return loc;
-}
-
-std::string Response::getIndexFile(const Config * location, const std::string & filename, const std::string & req_taget)
+void Response::handleGetRequest(Request const & req)
 {
-	for (int i = 0; i < location->index.size(); ++i)
-	{
-		std::string file = (filename + location->index[i]);
-		if (access(file.c_str(), F_OK))
-			continue ;
-		struct stat buffer;
-		stat (file.c_str(), &buffer);
-		if (!(buffer.st_mode & S_IROTH))
-			throw StatusCodeException(HttpStatus::Forbidden);
-		else
-			return (file);
-	}
-	if (!location->listing)
-		throw StatusCodeException(HttpStatus::Forbidden);
-	throw ListingException(filename, req_taget);
-}
-
-void Response::handleGetRequest(Request const & req, const Config * location, const std::string & request_path)
-{
-	std::string filename = request_path;
+	std::string filename = req.getFilename();
 	std::ostringstream oss("");
 	std::map<std::string, Config>::const_iterator cgi_location;
+	struct stat fileStat;
 
 	std::fstream * file = new std::fstream();
+	file->open(filename);
+		delete _body;
+		_body = file;
+	stat (filename.c_str(), &fileStat);
 
-	file->open(filename.c_str());
-	stat (filename.c_str(), &this->fileStat);
-	Utils::fileStat(filename, fileStat);
-	if (S_ISDIR(fileStat.st_mode))
-	{
-		filename = getIndexFile(location, filename, req.getRequestTarget());
-		file->close();
-		file->open(filename.c_str());
-		delete _body;
-		_body = file;
-		stat (filename.c_str(), &this->fileStat);
-	} else {
-		delete _body;
-		_body = file;
-	}
-	for (std::map<std::string, Config>::const_iterator it = server->location.begin(); it != server->location.end(); ++it) {
+	for (std::map<std::string, Config>::const_iterator it = _server->location.begin(); it != _server->location.end(); ++it) {
 		if (it->first == Utils::getFileExtension(filename)) {
-			location = &it->second;
+			_location = &it->second;
 			break;
 		}
 	}
 	// std::cout << "lol: " << location-> << std::endl;
 	// if (Utils::getFileExtension(filename) == ".php")
-	if (server->location.find(Utils::getFileExtension(filename)) != server->location.end())
+	if (_server->location.find(Utils::getFileExtension(filename)) != _server->location.end())
 	{
 		char buff[101] = {0};
 		_is_cgi = true;
 		file->close();
-		char * const ar[4] = {const_cast<char *>(location->cgi.c_str()), const_cast<char *>(request_path.c_str()), NULL};
+		char * const ar[4] = {const_cast<char *>(_location->cgi.c_str()), const_cast<char *>(filename.c_str()), NULL};
 		pipe(fd);
 		pid = fork();
 		if (pid == 0)
@@ -144,7 +92,7 @@ void Response::handleGetRequest(Request const & req, const Config * location, co
 			v.push_back(strdup((std::string("HOSTNAME") + "=" + buff).c_str()));
 			getlogin_r(buff, 100);
 			v.push_back(strdup((std::string("USER") + "=" + buff).c_str()));
-			v.push_back(strdup((std::string("SCRIPT_FILENAME") + "=" + request_path).c_str()));
+			v.push_back(strdup((std::string("SCRIPT_FILENAME") + "=" + filename).c_str()));
 			size_t n = req.getRequestTarget().find_first_of('?') + 1;
 			n = n == std::string::npos ? req.getRequestTarget().length() : n;
 			v.push_back(strdup((std::string("QUERY_STRING") + "=" + req.getRequestTarget().substr(n)).c_str()));
@@ -156,27 +104,27 @@ void Response::handleGetRequest(Request const & req, const Config * location, co
 			return ;
 		}
 	}
-	oss << this->fileStat.st_size;
+	oss << fileStat.st_size;
 	// insert_header("Content-Length", oss.str());
 	insert_header("Date", Utils::getDate());
 	insert_header("Server", SERVER_NAME);
-	insert_header("Last-Modified", Utils::time_last_modification(this->fileStat));
+	insert_header("Last-Modified", Utils::time_last_modification(fileStat));
 	insert_header("Transfer-Encoding", "chunked");
 	const char * type = MimeTypes::getType(filename.c_str());
-	type = type ?: "text/plain";
+	// type = type ?: "text/plain";
 	// if (_is_cgi)
-	// 	type = "text/html; charset=UTF-8";
-	insert_header("Content-Type", type);
+		// type = "text/html; charset=UTF-8";
+	// insert_header("Content-Type", type);
 	insert_header("Connection", "keep-alive");
 	insert_header("Accept-Ranges", "bytes");
 }
 
-void Response::handlePostRequest(Request const & req, const Config * location)
+void Response::handlePostRequest(Request const & req)
 {
 
 }
 
-void Response::handleDeleteRequest(Request const & req, const Config * location)
+void Response::handleDeleteRequest(Request const & req)
 {
 
 }
@@ -218,7 +166,6 @@ std::string Response::HeadertoString()
 			std::cout << "name : " << line.substr(0, start); 
 			_headers[line.substr(0, start)] = line.substr(line.find_first_of(':') + 2);
 		}
-
 	}
 	response << "HTTP/1.1 " << this->status << " " << reasonPhrase(this->status) << CRLF;
 	for (std::map<std::string, std::string>::iterator it = _headers.begin(); it != _headers.end(); ++it)
@@ -281,14 +228,6 @@ void	Response::readFile() {
 	}
 }
 
-const Config * Response::getServerConfig() const {
-	return this->server;
-}
-
-void Response::setServerConfig(const Config * config) {
-	this->server = config;
-}
-
 std::stringstream * errorTemplate(const StatusCodeException & e) {
 	std::stringstream * alloc = new std::stringstream("");
 	std::stringstream & body = *alloc;
@@ -323,7 +262,8 @@ void Response::setErrorPage(const StatusCodeException & e, const Config * locati
 
 	std::stringstream * err;
 
-	const std::map<int, std::string> & error_page = location->error_page.empty() ? server->error_page : location->error_page;
+	const std::map<int, std::string> & error_page = location->error_page.empty() ? _server->error_page : location->error_page;
+
 	std::fstream * errPage = NULL;
 
 	if (error_page.find(status) != error_page.end()) {
@@ -381,6 +321,11 @@ std::string Response::listingPage(const ListingException & e)
 	_headers["Server"] = SERVER_NAME;
 	_headers["Transfer-Encoding"] = "chunked";
 
+	for (std::__1::map<std::__1::string, std::__1::string, ci_less>::iterator it = _headers.begin(); it != _headers.end(); ++it)
+	{
+		std::cout << "header : " << it->first << ": " << it->second << "\n";
+	}
+	
 	DIR *dir;
 	struct dirent *ent;
 	*body << "<!DOCTYPE html>\n" ;

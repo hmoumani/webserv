@@ -78,15 +78,15 @@ namespace Utils {
 	* @param path: The path of the file
 	* @return: void
 	*/
-	inline void	fileStat(std::string const & filename, struct stat buffer)
+	inline void	fileStat(std::string const & filename, struct stat buffer, const Config * server)
 	{
 		// struct stat buffer;   
 		// stat (filename.c_str(), &buffer);
 		if (access( filename.c_str(), F_OK)){
-			throw StatusCodeException(HttpStatus::NotFound);
+			throw StatusCodeException(HttpStatus::NotFound, server);
 		}
 		if (!(buffer.st_mode & S_IROTH))
-			throw StatusCodeException(HttpStatus::Forbidden);
+			throw StatusCodeException(HttpStatus::Forbidden, server);
 	}
 
 	inline std::string	time_last_modification(struct stat buffer)
