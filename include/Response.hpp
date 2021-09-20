@@ -54,12 +54,10 @@ class Response : public Message
         const std::iostream * getFile() const;
         std::string getIndexFile(const Config * location, const std::string & filename, const std::string & req_taget);
         void setErrorPage(const StatusCodeException & e, const Config * location);
-
         void setServerConfig(const Config * config);
         const Config * getServerConfig() const;
         bool is_cgi() const ;
         std::string listingPage(const ListingException & e);
-
 };
 
 std::stringstream * errorPage(const StatusCodeException & e);

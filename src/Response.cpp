@@ -164,8 +164,8 @@ void Response::handleGetRequest(Request const & req, const Config * location, co
 	insert_header("Transfer-Encoding", "chunked");
 	const char * type = MimeTypes::getType(filename.c_str());
 	type = type ?: "text/plain";
-	if (_is_cgi)
-		type = "text/html; charset=UTF-8";
+	// if (_is_cgi)
+	// 	type = "text/html; charset=UTF-8";
 	insert_header("Content-Type", type);
 	insert_header("Connection", "keep-alive");
 	insert_header("Accept-Ranges", "bytes");
@@ -223,8 +223,6 @@ std::string Response::HeadertoString()
 	response << "HTTP/1.1 " << this->status << " " << reasonPhrase(this->status) << CRLF;
 	for (std::map<std::string, std::string>::iterator it = _headers.begin(); it != _headers.end(); ++it)
 	{
-		std::string str = it->first;
-		// std::transform(str.begin(), str.end(), str.begin(), ::tolower );
 		response << it->first << ": " << it->second << CRLF;
 	}
 	response << CRLF;

@@ -30,18 +30,7 @@ struct ci_less : std::binary_function<std::string, std::string, bool>
 class Message
 {
 protected:
-	// static bool iequals(const std::string& a, const std::string& b)
-	// {
-	// 	unsigned int sz = a.size();
-	// 	if (b.size() != sz)
-	// 		return false;
-	// 	for (unsigned int i = 0; i < sz; ++i)
-	// 		if (tolower(a[i]) != tolower(b[i]))
-	// 			return false;
-	// 	return true;
-	// }
 
-	
 	std::map<std::string, std::string, ci_less> _headers;
 	std::iostream * _body;
 	bool _isBodyFile;
