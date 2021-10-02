@@ -18,10 +18,20 @@ void Request::reset() {
     Message::reset();
     _parser.current_stat = _parser.METHOD;
     _parser.cr = false;
+    _parser.str = "";
+    _parser.key = "";
+    _parser.end = false;
 
     _bparser.len = -1;
     _bparser.cr = false;
     _bparser.end = false;
+    _bparser.str = "";
+
+    _filename = "";
+    _request_target = "";
+    _http_version = "";
+
+
 
 }
 Request::Request() {
@@ -38,17 +48,8 @@ Request::Request(const Socket & connection) throw(StatusCodeException) {
     std::cerr << "Body: " << ((std::stringstream *)_body)->str() << "|" << std::endl;
 }
 
-void Request::receive(const Socket & connection) {
-    ssize_t bytesRead;
-    char buffer[BUFFER_SIZE];
 
-    bytesRead = connection.recv(buffer, BUFFER_SIZE);
-    write(2, buffer, bytesRead);
-    parse(buffer, bytesRead);
-
-}
-
-static std::string & trim(std::string & str) {
+std::string & trim(std::string & str) {
     int first = str.find_first_not_of(" \n\r\t");
     int last = str.find_last_not_of(" \n\r\t");
 
@@ -117,22 +118,50 @@ static const std::string getIndexFile(const Config * location, const std::string
 }
 
 void Request::checkRequestTarget() {
-	_filename = getRequestedPath(_request_target, _server);
+    _location = getLocationFromRequest(*this, _server);
+	_filename = getRequestedPath(_request_target, _location);
     struct stat fileStat;
     stat (_filename.c_str(), &fileStat);
-	Utils::fileStat(_filename, fileStat, _server);
+	Utils::fileStat(_filename, fileStat, _location);
 	if (S_ISDIR(fileStat.st_mode)) {
-		_filename = getIndexFile(_server, _filename, _request_target);
+		_filename = getIndexFile(_location, _filename, _request_target);
 	}
     _location = getLocationFromRequest(*this, _server);
+}
+void Request::receive(const Socket & connection) {
+    ssize_t bytesRead;
+    char buffer[BUFFER_SIZE];
 
+    if (_parser.buff.length() == 0) {
+        _parser.buff.resize(BUFFER_SIZE);
+        bytesRead = connection.recv(buffer, BUFFER_SIZE);
+        if (bytesRead == 0 || bytesRead == -1) {
+            _parser.end = false;
+            // _bparser.end = true;
+            return;
+        }
+        std::cerr << "bytesRead: " << bytesRead << std::endl;
+        perror("hello");
+        _parser.buff.setData(buffer, bytesRead);
+        write(2, buffer, bytesRead);
+    }
+    parse();
+    if (_bparser.end) {
+        _body_size = _body->tellp();
+    }
 }
 
-bool Request::parse(const char * buff, size_t size) {
-    size_t i;
+bool Request::parse() {
+    // size_t i = _parser.buff.pos;
+    // size_t size = _parser.buff.size;
+    // char * buff = _parser.buff.data;
+    bool end = false;
+    char c;
 
-    for (i = 0; i < size; i++) {
-        if (_parser.cr && buff[i] == '\n') {
+    while (_parser.buff.length()) {
+        if (_parser.current_stat != _parser.BODY)
+            c = _parser.buff.getc();
+        if (_parser.cr && c == '\n') {
             if (_parser.current_stat != _parser.HTTP_VER && _parser.current_stat != _parser.HEADER_KEY && _parser.current_stat != _parser.HEADER_VALUE) {
                 throw StatusCodeException(HttpStatus::BadRequest, _server);
             }
@@ -140,37 +169,30 @@ bool Request::parse(const char * buff, size_t size) {
                 _parser.str.clear();
             }
         }
+        if (_parser.buff.length() == 0 && _parser.buff.size != BUFFER_SIZE) {
+            end = true;
+        }
         if ((_parser.key.size() + _parser.str.size()) > max_size[_parser.current_stat]) {
             throw StatusCodeException(HttpStatus::BadRequest, _server);
-        } else if (_parser.current_stat == _parser.METHOD && buff[i] == ' ') {
+        } else if ((_parser.current_stat == _parser.METHOD && (c == ' ' || end))) {
             _method = getMethodFromName(_parser.str);
             if (_method == UNKNOWN) {
                 throw StatusCodeException(HttpStatus::BadRequest, _server);
             }
             _parser.current_stat = _parser.REQUEST_TARGET;
-        } else if (_parser.current_stat == _parser.REQUEST_TARGET && buff[i] == ' ') {
+        } else if ((_parser.current_stat == _parser.REQUEST_TARGET && (c == ' ' || end))) {
             if (_parser.str.empty() || _parser.str[0] != '/') {
                 throw StatusCodeException(HttpStatus::BadRequest, _server);
             }
             _request_target = _parser.str;
             _parser.current_stat = _parser.HTTP_VER;
-        } else if (_parser.current_stat == _parser.HTTP_VER && _parser.cr && buff[i] == '\n') {
+        } else if ((_parser.current_stat == _parser.HTTP_VER && ((_parser.cr && c == '\n') || end))) {
             _http_version = _parser.str;
             if (_http_version != "HTTP/1.1") {
                 throw StatusCodeException(HttpStatus::BadRequest, _server);
             }
             _parser.current_stat = _parser.HEADER_KEY;
-        } else if (_parser.current_stat == _parser.HEADER_KEY && buff[i] == ':') {
-            _parser.key = trim(_parser.str);
-            _parser.current_stat = _parser.HEADER_VALUE;
-        } else if (_parser.current_stat == _parser.HEADER_VALUE && _parser.cr && buff[i] == '\n') {
-            insert_header(_parser.key, trim(_parser.str));
-            if (_parser.key == "Host") {
-                _server = getConnectionServerConfig(_server->host, _server->port, getHeader("Host"));
-            }
-            _parser.current_stat = _parser.HEADER_KEY;
-            _parser.key.clear();
-        } else if (_parser.current_stat == _parser.HEADER_KEY && _parser.str.empty() && _parser.cr && buff[i] == '\n') {
+        } else if ((_parser.current_stat == _parser.HEADER_KEY && _parser.str.empty() && ((_parser.cr && c == '\n') || end))) {
             _parser.current_stat = _parser.BODY;
             if (_headers.find("Transfer-Encoding") == _headers.end() && _headers.find("Content-Length") == _headers.end()) {
                 _bparser.end = true;
@@ -179,25 +201,38 @@ bool Request::parse(const char * buff, size_t size) {
                 throw StatusCodeException(HttpStatus::BadRequest, _server);
             }
             checkRequestTarget();
-        } else if (_parser.current_stat == _parser.BODY) {
-            size_t s = receiveBody(buff + i, size - i);
-            i += s;
-            if (s == 0) {
-                return true;
+            _parser.end = true;
+
+        } else if ((_parser.current_stat == _parser.HEADER_KEY && (c == ':' || end))) {
+            _parser.key = trim(_parser.str);
+            _parser.current_stat = _parser.HEADER_VALUE;
+        } else if ((_parser.current_stat == _parser.HEADER_VALUE && ((_parser.cr && c == '\n') || end))) {
+            insert_header(_parser.key, trim(_parser.str));
+            if (_parser.key == "Host") {
+                _server = getConnectionServerConfig(_server->host, _server->port, getHeader("Host"));
             }
-        } else {
-            if (buff[i] == '\r')
+            _parser.current_stat = _parser.HEADER_KEY;
+            _parser.key.clear();
+        }else {
+            if (c == '\r')
                 _parser.cr = true;
             else {
-                _parser.str += buff[i];
+                _parser.str += c;
                 _parser.cr = false;
             }
             continue;
         }
+        if (_parser.current_stat == _parser.BODY) {
+            receiveBody();
+            // i += s;
+            // if (s == 0) {
+            break;
+            // }
+        } 
         _parser.cr = false;
         _parser.str.clear();
     }
-    if (_parser.str.size() > max_size[_parser.current_stat]) {
+    if (_parser.current_stat != _parser.BODY && _parser.str.size() > max_size[_parser.current_stat]) {
         throw StatusCodeException(HttpStatus::BadRequest, _server);
     }
     return false;
@@ -221,62 +256,75 @@ bool isValidDecimal(const std::string decimal) {
     return true;
 }
 
-size_t Request::receiveBody(const char * buff, size_t size) {
-    int i = 0;
-
-    if (_headers.find("Transfer-Encoding") != _headers.end() && _headers["Transfer-Encoding"] == "chunked") {
-        for (i = 0; i < size; ++i) {
+size_t Request::receiveBody() {
+    // int i = 0;
+    char c = -1;
+    // if (_headers.find("Transfer-Encoding") != _headers.end() && _headers["Transfer-Encoding"] == "chunked") {
+    if (_headers.find("Transfer-Encoding") != _headers.end() && _headers.find("Transfer-Encoding")->second == "chunked") {
+        while (_parser.buff.length()) {
             if (_bparser.len > 0) {
-                size_t write_len = std::min((size_t)_bparser.len, size - i);
-                _body->write(buff + i, write_len);
+                size_t write_len = std::min((size_t)_bparser.len, _parser.buff.length());
+                _body->write(_parser.buff.data + _parser.buff.pos, write_len);
+                _parser.buff.pos += write_len - 1;
                 _bparser.len -= write_len;
-                i += write_len - 1;
-            } else if (_bparser.len == 0 && _bparser.cr && buff[i] == '\n') {
-                if (_bparser.end) {
-                    return 0;
-                }
-                _bparser.len = -1;
-            } else if (_bparser.len == -1) {
-                if (_bparser.cr && buff[i] == '\n') {
-                    std::stringstream ss;
-                    size_t last = _bparser.str.find_first_of(';');
-                    last = last == std::string::npos ? _bparser.str.length() : last;
-                    _bparser.str = _bparser.str.substr(0, last);
-                    if (!isValidHex(_bparser.str)) {
-                        throw StatusCodeException(HttpStatus::BadRequest, _server);
+                // i += write_len - 1;
+            } else {
+                c = _parser.buff.getc();
+                if (_bparser.len == 0 && _bparser.cr && c == '\n') {
+                    if (_bparser.end) {
+                        return 0;
                     }
-                    ss << std::hex << _bparser.str;
-                    ss >> _bparser.len;
-                    _bparser.str.clear();
-                    
-                    _bparser.end = _bparser.len == 0;
+                    _bparser.len = -1;
+                } else if (_bparser.len == -1) {
+                    if (_bparser.cr && c == '\n') {
+                        std::stringstream ss;
+                        size_t last = _bparser.str.find_first_of(';');
+                        last = last == std::string::npos ? _bparser.str.length() : last;
+                        _bparser.str = _bparser.str.substr(0, last);
+                        if (!isValidHex(_bparser.str)) {
+                            throw StatusCodeException(HttpStatus::BadRequest, _server);
+                        }
+                        ss << std::hex << _bparser.str;
+                        ss >> _bparser.len;
+                        _bparser.str.clear();
+                        
+                        _bparser.end = _bparser.len == 0;
 
-                    if (!_isBodyFile && (_bparser.len + _body->tellp()) > max_size[_parser.BODY]) {
-                        openBodyFile();
+                        if (_bparser.len + _body->tellp() > _location->max_body_size) {
+                            throw StatusCodeException(HttpStatus::PayloadTooLarge, _location);
+                        }
+                        if (!_isBodyFile && (_bparser.len + _body->tellp()) > max_size[_parser.BODY]) {
+                            openBodyFile();
+                        }
+
+                        std::cerr << "chunked size: " << _bparser.len << std::endl;
+                    } else if (c != '\r') {
+                        _bparser.str += c;
                     }
-
-                    std::cerr << "chunked size: " << _bparser.len << std::endl;
-                } else if (buff[i] != '\r') {
-                    _bparser.str += buff[i];
                 }
             }
-            if (buff[i] == '\r') _bparser.cr = true; else _bparser.cr = false;
+            if (c == '\r') _bparser.cr = true; else _bparser.cr = false;
         }
     } else if (_headers.find("Content-Length") != _headers.end()) {
-        if (isValidDecimal(_headers["Content-Length"])) {
+        // if (isValidDecimal(_headers["Content-Length"])) {
+        if (isValidDecimal(_headers.find("Content-Length")->second)) {
             if (_bparser.len == -1) {
-                _bparser.len = std::atoi(_headers["Content-Length"].c_str());
+                _bparser.len = std::atol(_headers.find("Content-Length")->second.c_str());
+                if (_bparser.len > _location->max_body_size) {
+                    throw StatusCodeException(HttpStatus::PayloadTooLarge, _location);
+                }
                 if (_bparser.len > max_size[_parser.BODY]) {
                     openBodyFile();
                 }
             }
-            size_t write_len = std::min((size_t)_bparser.len, size);
-            _body->write(buff + i, write_len);
+            size_t write_len = std::min((size_t)_bparser.len, _parser.buff.length());
+            _body->write(_parser.buff.data + _parser.buff.pos, write_len);
+            _parser.buff.pos += write_len;
+
             _bparser.len -= write_len;
-            i += write_len - 1;
             if (_bparser.len == 0) {
                 _bparser.end = true;
-                return 0;
+                // return 0;
             }
         } else {
             throw StatusCodeException(HttpStatus::BadRequest, _server);
@@ -284,7 +332,7 @@ size_t Request::receiveBody(const char * buff, size_t size) {
     } else {
         _bparser.end = true;
     }
-    return i;
+    return 0;
 }
 
 void Request::openBodyFile() {
@@ -301,8 +349,19 @@ void Request::openBodyFile() {
     delete body_ss;
 }
 
-bool Request::isFinished() const {
+bool Request::isBodyFinished() const {
     return _bparser.end;
+}
+
+bool Request::isHeadersFinished() const {
+    return _parser.end;
+}
+
+void Request::setHeaderFinished(bool isFinished) {
+    _parser.end = isFinished;
+}
+void Request::setBodyFinished(bool isFinished) {
+    _bparser.end = isFinished;
 }
 
 // Request::Request(const std::string & message) throw(StatusCodeException) : Message(message) {
@@ -344,4 +403,18 @@ const std::string & Request::getHTTPVersion() const {
 
 const std::string & Request::getFilename() const {
     return _filename;
+}
+Buffer & Request::getBuffer() {
+    return _parser.buff;
+}
+
+std::string Request::getMethodName() const {
+    if (_method == GET)
+        return "GET";
+    else if (_method == POST)
+        return "POST";
+    else if (_method == DELETE)
+        return "DELETE";
+    else
+        return "UNKNOWN";
 }

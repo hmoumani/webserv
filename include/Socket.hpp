@@ -16,7 +16,6 @@
 #include <sstream>
 #include "Buffer.hpp"
 #include "Response.hpp"
-#define BUFFER_SIZE 128
 class Response;
 enum TypeSocket {BlockingSocket, NonBlockingSocket};
 

@@ -3,7 +3,7 @@
 #include <cstdlib>
 #include <stdexcept>
 #include <cstring>
-
+#include <iostream>
 class Buffer {
 public:
     char *data;
@@ -38,6 +38,7 @@ public:
     }
 
     void resize(size_t new_size) {
+        // std::cerr << "size: " << new_size << std::endl;
         if (size == new_size) {
             pos = 0;
             return ;   
@@ -67,6 +68,24 @@ public:
         }
         throw std::out_of_range("buffer out of range");
     }
+    
+    ssize_t read(char *buff, size_t size) {
+        buff = data + pos;
+        pos += size;
+        return size <= length() ? size : length();
+    }
 
+    char getc() {
+        if (pos < size) {
+            return data[pos++];
+        }
+        return -1;
+    }
+    char peekc() {
+        if (pos < size) {
+            return data[pos];
+        }
+        return -1;
+    }
 };
 

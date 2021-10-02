@@ -76,7 +76,7 @@ const sockaddr_in & Socket::getAddress() const {
 
 void Socket::close() const {
     if (_fd != -1) {
-        // std::cout << "Close Socket" << std::endl;
+        // std::cerr << "Close Socket" << std::endl;
         ::close(_fd);
     }
 }
@@ -115,6 +115,7 @@ void Socket::send(Response & res) const {
         if (buffer->pos == 0) {
             std::stringstream ss;
             ss << std::hex << buffer->length() << CRLF;
+            // std::cerr << "sent: " << ss.str() << std::endl;
             // write(2, ss.str().c_str(), ss.str().length());
             ::send(_fd, ss.str().c_str(), ss.str().length(), 0);
         }
@@ -127,7 +128,7 @@ void Socket::send(Response & res) const {
         buffer->pos += bytes;
     }
 
-    if (res.buffer_body.length() == 0) {
+    if (res.buffer_body.length() == 0 && res.buffer_body.size != 0) {
         // write(2, "\r\n", 2);
         ::send(_fd, "\r\n", 2, 0);
     }

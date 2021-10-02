@@ -16,7 +16,7 @@
 # include <algorithm>
 # include "Utils.hpp"
 # include "MimeTypes.hpp"
-#include "Config.hpp"
+# include "Config.hpp"
 // #include
 class Config;
 class Request;
@@ -28,11 +28,14 @@ class Socket;
 class Response : public Message
 {
     private:
-        HttpStatus::StatusCode status;
+        HttpStatus::StatusCode _status;
         // struct stat fileStat;
         bool        _is_cgi;
         pid_t       pid;
         int         fd[2];
+        int         fd_body[2];
+        std::streamsize body_size_cgi;
+        std::streamsize sent_body;
 
         // const std::string getRequestedPath(const Request &, const Config *);
     public:
@@ -44,10 +47,12 @@ class Response : public Message
         ~Response();
         Response &operator= (Response const &);
         void handleRequest(Request const &);
+        void handleCGI(Request const &);
         void handleGetRequest(Request const &);
         void handlePostRequest(Request const &);
         void handleDeleteRequest(Request const &);
         std::string HeadertoString();
+        HttpStatus::StatusCode getStatusCode() const;
         void    send_file(Socket & connection);
         void    readFile();
         const std::iostream * getFile() const;
@@ -55,15 +60,13 @@ class Response : public Message
         void setErrorPage(const StatusCodeException & e, const Config * location);
         std::string listingPage(const ListingException & e);
         bool is_cgi() const ;
-
+        bool isSendingBodyFinished(const Request & request) const;
+        void set_cgi_body(const Request & request);
         void reset();
-
-
 };
 
 std::stringstream * errorPage(const StatusCodeException & e);
 static const Config * getLocation(const Request & req, const Config * server);
 static const void handleRequest(const Request & req, const Config * location);
 void error(std::string message);
-
 #endif

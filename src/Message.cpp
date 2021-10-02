@@ -2,6 +2,7 @@
 
 Message::Message() {
     _body = NULL;
+    _body_size = 0;
     reset();
 }
 
@@ -59,25 +60,38 @@ Message::~Message() {
     delete _body;
 }
 
-const std::map<std::string, std::string, ci_less> & Message::getHeader() const {
+const std::multimap<std::string, std::string, ci_less> & Message::getHeader() const {
     return this->_headers;
 }
 
-const std::iostream * Message::getBody() const {
+std::iostream * Message::getBody() const {
     return this->_body;
 }
 
 const std::string Message::getHeader(const std::string & key) const
 {
-    std::map<std::string, std::string>::const_iterator it =  this->_headers.find(key);
+    std::multimap<std::string, std::string>::const_iterator it =  this->_headers.find(key);
     if (it == _headers.end())
         return ("");
     return it->second;
 }
 
+bool isKeyEqual(std::string s1, std::string s2)
+{
+    std::transform(s1.begin(), s1.end(), s1.begin(), tolower);
+    std::transform(s2.begin(), s2.end(), s2.begin(), tolower);
+    return s1 == s2;
+}
+
 void Message::insert_header(std::string const & key, std::string const & val)
 {
-    this->_headers.insert(std::pair<std::string, std::string>(key, val));
+    if (isKeyEqual(key, "set-cookie") || (_headers.find(key) == _headers.end()))
+        this->_headers.insert(std::pair<std::string, std::string>(key, val));
+}
+
+void Message::setHeader(const std::string & key, const std::string & val) {
+    insert_header(key, val);
+    // _headers[key] = val;
 }
 
 const Config * Message::getServerConfig() const {
@@ -86,6 +100,8 @@ const Config * Message::getServerConfig() const {
 
 void Message::setServerConfig(const Config * config) {
 	this->_server = config;
+    if (!_location)
+        _location = _server;
 }
 
 const Config * Message::getLocation() const {
@@ -101,4 +117,13 @@ void Message::reset() {
 
 	_server = NULL;
 	_location = NULL;
+}
+
+
+size_t Message::getBodySize() const {
+    return _body_size;
+}
+
+void Message::setBodySize(size_t size) {
+    _body_size = size;
 }

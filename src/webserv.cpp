@@ -130,34 +130,52 @@ int main(int argc, char *argv[]) {
 				Request & request = connection.request;
 				Response & response = connection.response;
 					
-				if (fds[i].revents & POLLIN) {
+				if (fds[i].revents & POLLIN || ((fds[i].events & POLLIN) && request.getBuffer().length())) {
 					try {
 						request.setServerConfig(getConnectionServerConfig(connection.parent.getHost(), connection.parent.getPort(), ""));
 						request.receive(connection.sock);
-
-						if (request.isFinished()) {
+						std::cout << "Reading " << std::endl;
+						if (request.isHeadersFinished()) {
 							std::cerr << "Request Succesful" << std::endl;
 							
 							response.setServerConfig(getConnectionServerConfig(connection.parent.getHost(), connection.parent.getPort(), request.getHeader("Host")));
 							response.handleRequest(request);
 						}
+						// if (request.isBodyFinished()) {
+							// response.cgi_read(request);
+						// }
+						// std::cerr << std::boolalpha << response.is_cgi() << " " << !response.isSendingBodyFinished(request) <<
+						// " " << request.getBodySize() <<  std::endl;
+						if (response.is_cgi() && !response.isSendingBodyFinished(request))
+						{
+							response.set_cgi_body(request);
+						}
 					} catch (const StatusCodeException & e) {
 						std::cerr << "Caught exception: " << e.getStatusCode() << " " << e.what() << std::endl;
 
 						response.setServerConfig(getConnectionServerConfig(connection.parent.getHost(), connection.parent.getPort(), ""));
+						response.insert_header("Connection", "close");
 						response.setErrorPage(e, e.getServer());
+						request.setHeaderFinished(true);
+						request.setBodyFinished(true);
+						response.setHeader("Connection", "close");
+
 					} catch(const ListingException & e){
-						response.listingPage(e);
-						std::string data = response.HeadertoString();
+						std::string data = response.listingPage(e);
+						// response.setServerConfig(getConnectionServerConfig(connection.parent.getHost(), connection.parent.getPort(), ""));
 						response.buffer_header.setData(data.c_str(), data.length());
-						fds[i].events = POLLOUT;
+						// fds[i].events = POLLOUT;
 					}
 
-					if (response.getServerConfig()) {
+					if (request.isHeadersFinished() && (!response.is_cgi() || request.isBodyFinished())) {
 						std::string data = response.HeadertoString();
-
+						// std::cerr << "Response: " << response.getStatusCode() <<  << std::endl;
 						response.buffer_header.setData(data.c_str(), data.length());
 						fds[i].events = POLLOUT;
+						if (!request.isBodyFinished()) {
+							fds[i].events |= POLLIN;
+						}
+						request.setHeaderFinished(false);
 					}
 				}
 
@@ -170,11 +188,22 @@ int main(int argc, char *argv[]) {
 					if (response.buffer_body.length() || response.buffer_header.length())
 						connection.sock.send(response);
 						
-					if (!response.is_cgi() && response.getFile()->eof() && response.buffer_header.length() == 0 && response.buffer_body.length() == 0) {
-						fds[i].events = POLLIN;
+				}
+				if (!response.is_cgi() && response.getFile()->eof() && response.buffer_header.length() == 0 && response.buffer_body.length() == 0) {
+					if (fds[i].revents & POLLOUT) {
+						// fds[i].events = POLLIN;
 						if (response.getHeader("Transfer-Encoding") == "chunked") {
-				        	// write(2, "0\r\n\r\n", 5);
+							// write(2, "0\r\n\r\n", 5);
 							send(connection.sock.getFD(), "0\r\n\r\n", 5, 0);
+						}
+						fds[i].events = POLLIN;
+					}
+					if (request.isBodyFinished()) {
+						if (request.getHeader("Connection") == "close") {
+							response.setHeader("Connection", "close");
+						}
+						if (response.getHeader("Connection") == "close") {
+							close = true;
 						}
 						connection.request.reset();
 						connection.response.reset();

@@ -8,7 +8,7 @@
 #include "ListingException.hpp"
 #include "Socket.hpp"
 // #include "webserv.hpp"
-// #define BUFFER_SIZE 128
+#define BUFFER_SIZE 1024 * 1024
 
 class Socket;
 
@@ -25,6 +25,9 @@ private:
         std::string str;
         std::string key;
         bool cr;
+        bool end;
+
+        Buffer buff;
     } _parser;
 
     struct {
@@ -38,8 +41,8 @@ private:
 
     std::string _filename;
 
-    bool parse(const char * buff, size_t size);
-    size_t receiveBody(const char * buff, size_t size);
+    bool parse();
+    size_t receiveBody();
     void openBodyFile();
     void checkRequestTarget();
 
@@ -51,11 +54,16 @@ public:
     ~Request();
 
     const Method getMethod() const;
+    std::string getMethodName() const;
     const std::string & getRequestTarget() const;
     const std::string & getHTTPVersion() const;
     const std::string & getFilename() const;
+    Buffer & getBuffer();
 
-    bool isFinished() const;
+    bool isHeadersFinished() const;
+    bool isBodyFinished() const;
+    void setHeaderFinished(bool isFinished);
+    void setBodyFinished(bool isFinished);
     void receive(const Socket & connection);
     void reset();
 
@@ -65,6 +73,7 @@ public:
 
 Method getMethodFromName(const std::string & method);
 const std::string getPathFromUri(const std::string & uri);
+std::string & trim(std::string & str);
 
 
 #endif
