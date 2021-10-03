@@ -28,14 +28,15 @@ class Socket;
 class Response : public Message
 {
     private:
-        HttpStatus::StatusCode _status;
-        // struct stat fileStat;
-        bool        _is_cgi;
-        pid_t       pid;
-        int         fd[2];
-        int         fd_body[2];
-        std::streamsize body_size_cgi;
-        std::streamsize sent_body;
+        HttpStatus::StatusCode	_status;
+        bool					_isCgiHeaderFinished;
+        bool					_is_cgi;
+        pid_t					pid;
+        int						fd[2];
+        int						fd_body[2];
+        std::streamsize			body_size_cgi;
+        std::streamsize			sent_body;
+		std::stringstream		cgiHeader;
 
         // const std::string getRequestedPath(const Request &, const Config *);
     public:
@@ -61,6 +62,8 @@ class Response : public Message
         std::string listingPage(const ListingException & e);
         bool is_cgi() const ;
         bool isSendingBodyFinished(const Request & request) const;
+        bool isCgiHeaderFinished() const;
+		void readCgiHeader();
         void set_cgi_body(const Request & request);
         void reset();
 };

@@ -2,11 +2,11 @@
 #include "debug.hpp"
 #include <algorithm>
 
-Response::Response() : _is_cgi(false), _status(HttpStatus::StatusCode(200)), sent_body(0)
+Response::Response() : _is_cgi(false), _status(HttpStatus::StatusCode(200)), sent_body(0), _isCgiHeaderFinished(false), cgiHeader("")
 {
 }
 
-Response::Response(Response const & src) : _is_cgi(false), _status(HttpStatus::StatusCode(200)), sent_body(0)
+Response::Response(Response const & src) : _is_cgi(false), _status(HttpStatus::StatusCode(200)), sent_body(0), _isCgiHeaderFinished(false), cgiHeader("")
 {
 	*this = src;
 }
@@ -31,6 +31,9 @@ void Response::reset() {
 	buffer_header.resize(0);
 	buffer_body.resize(0);
 	sent_body = 0;
+	_isCgiHeaderFinished = false;
+	cgiHeader.str("");
+	
 }
 
 // Response::Response(Request const & req, const Config * config) 
@@ -169,53 +172,53 @@ std::string Response::HeadertoString()
 {
 	std::ostringstream response("");
 
-	if (is_cgi())
-	{
-		char s[2050] = {0};
-		// buff.resize(1025);
-		// buff.data[1024] = 0;
-		int ret = 0, total = 0;
-		size_t pos;
-		while (true)
-		{
-			// std::cerr << "fd: " << fd[0] << std::endl;
-			pollfd pfd = (pollfd){fd[0], POLLIN};
-			// std::cerr << "Before" << std::endl;
-			int pret = poll(&pfd, 1, -1);
-			// std::cerr << "After" << std::endl;
-			if(pret == -1)
-				error("poll failed");
-			ret = read(fd[0], s + total, 2049 - total);
-			// std::cerr << "ret: " << ret << std::endl;
-			// if (ret <= 0)
-			// 	return "";
-			total += ret;
-			// s[total] = 0;
-			if ((pos = std::string(s).find("\r\n\r\n")) != std::string::npos){
-				pos += 4;
-				break ;
-			}
-			if ((pos = std::string(s).find("\n\n")) != std::string::npos){
-				pos += 2;
-				break ;
-			}
-		}
+	// if (is_cgi())
+	// {
+	// 	char s[2050] = {0};
+	// 	// buff.resize(1025);
+	// 	// buff.data[1024] = 0;
+	// 	int ret = 0, total = 0;
+	// 	size_t pos;
+	// 	while (true)
+	// 	{
+	// 		// std::cerr << "fd: " << fd[0] << std::endl;
+	// 		pollfd pfd = (pollfd){fd[0], POLLIN};
+	// 		// std::cerr << "Before" << std::endl;
+	// 		int pret = poll(&pfd, 1, -1);
+	// 		// std::cerr << "After" << std::endl;
+	// 		if(pret == -1)
+	// 			error("poll failed");
+	// 		ret = read(fd[0], s + total, 2049 - total);
+	// 		// std::cerr << "ret: " << ret << std::endl;
+	// 		// if (ret <= 0)
+	// 		// 	return "";
+	// 		total += ret;
+	// 		// s[total] = 0;
+	// 		if ((pos = std::string(s).find("\r\n\r\n")) != std::string::npos){
+	// 			pos += 4;
+	// 			break ;
+	// 		}
+	// 		if ((pos = std::string(s).find("\n\n")) != std::string::npos){
+	// 			pos += 2;
+	// 			break ;
+	// 		}
+	// 	}
 
-		buffer_body.setData(std::string(s).substr(pos).c_str(), std::string(s).substr(pos).length());
-		s[pos] = '\0';
-		std::istringstream iss(s);
-		std::string line;
-		while (std::getline(iss, line))
-		{
-			size_t start = line.find_first_of(':');
-			size_t end = line.find_first_of(':') + 2;
-			if (start == std::string::npos || end == std::string::npos)
-				continue ;
-			std::string str = line.substr(line.find_first_of(':') + 2);
-			insert_header(line.substr(0, start), trim(str));
-			// _headers[line.substr(0, start)] = trim(str);
-		}
-	}
+	// 	buffer_body.setData(std::string(s).substr(pos).c_str(), std::string(s).substr(pos).length());
+	// 	s[pos] = '\0';
+	// 	std::istringstream iss(s);
+	// 	std::string line;
+	// 	while (std::getline(iss, line))
+	// 	{
+	// 		size_t start = line.find_first_of(':');
+	// 		size_t end = line.find_first_of(':') + 2;
+	// 		if (start == std::string::npos || end == std::string::npos)
+	// 			continue ;
+	// 		std::string str = line.substr(line.find_first_of(':') + 2);
+	// 		insert_header(line.substr(0, start), trim(str));
+	// 		// _headers[line.substr(0, start)] = trim(str);
+	// 	}
+	// }
 	response << "HTTP/1.1 " << this->_status << " " << reasonPhrase(this->_status) << CRLF;
 	std::cerr << response.str() << std::endl;
 	for (std::multimap<std::string, std::string>::iterator it = _headers.begin(); it != _headers.end(); ++it)
@@ -455,4 +458,80 @@ void Response::set_cgi_body(const Request & request)
 
 HttpStatus::StatusCode Response::getStatusCode() const {
 	return _status;
+}
+
+bool Response::isCgiHeaderFinished() const
+{
+	return _isCgiHeaderFinished;
+}
+
+void Response::readCgiHeader()
+{
+	std::string temp;
+	size_t pos;
+	if (!isCgiHeaderFinished())
+	{
+		char s[2050] = {0};
+		// buff.resize(1025);
+		// buff.data[1024] = 0;
+		int ret = 0;
+		// size_t pos;
+		// std::cerr << "fd: " << fd[0] << std::endl;
+		pollfd pfd = (pollfd){fd[0], POLLIN};
+		// std::cerr << "Before" << std::endl;
+		int pret = poll(&pfd, 1, -1);
+		// std::cerr << "After" << std::endl;
+		if(pret == -1)
+			error("poll failed");
+		ret = read(fd[0], s, 2049);
+		if (ret == -1)
+			return ;
+		cgiHeader << s;
+		// std::cerr << "ret: " << ret << std::endl;
+		// if (ret <= 0)
+		// 	return "";
+		// s[total] = 0;
+		temp = cgiHeader.str();
+		if ((pos = temp.find("\r\n\r\n")) != std::string::npos){
+			pos += 4;
+			_isCgiHeaderFinished = true;
+			
+		}
+		else if ((pos = temp.find("\n\n")) != std::string::npos){
+			pos += 2;
+			_isCgiHeaderFinished = true;
+		}
+		if (isCgiHeaderFinished()) 
+		{
+			buffer_body.setData(temp.substr(pos).c_str(), temp.substr(pos).length());
+			std::stringstream ss(temp.substr(0, pos));
+			std::string line;
+			while (std::getline(ss, line))
+			{
+				size_t start = line.find_first_of(':');
+				size_t end = line.find_first_of(':');
+				if (start == std::string::npos || end == std::string::npos)
+					continue ;
+				std::string str = line.substr(line.find_first_of(':') + 2);
+				insert_header(line.substr(0, start), trim(str));
+				// _headers[line.substr(0, start)] = trim(str);
+			}
+		}
+	}
+	// if (isCgiHeaderFinished()) 
+	// {
+	// 	buffer_body.setData(temp.substr(pos).c_str(), temp.substr(pos).length());
+	// 	std::stringstream ss(temp);
+	// 	std::string line;
+	// 	while (std::getline(ss, line))
+	// 	{
+	// 		size_t start = line.find_first_of(':');
+	// 		size_t end = line.find_first_of(':') + 2;
+	// 		if (start == std::string::npos || end == std::string::npos)
+	// 			continue ;
+	// 		std::string str = line.substr(line.find_first_of(':') + 2);
+	// 		insert_header(line.substr(0, start), trim(str));
+	// 		// _headers[line.substr(0, start)] = trim(str);
+	// 	}
+	// }
 }
