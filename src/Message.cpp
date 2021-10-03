@@ -87,11 +87,15 @@ void Message::insert_header(std::string const & key, std::string const & val)
 {
     if (isKeyEqual(key, "set-cookie") || (_headers.find(key) == _headers.end()))
         this->_headers.insert(std::pair<std::string, std::string>(key, val));
+    
 }
 
 void Message::setHeader(const std::string & key, const std::string & val) {
-    insert_header(key, val);
-    // _headers[key] = val;
+    std::multimap<std::string, std::string>::iterator it = _headers.find(key);
+    if (isKeyEqual(key, "set-cookie") || (it == _headers.end()))
+        this->_headers.insert(std::pair<std::string, std::string>(key, val));
+    else if (it != _headers.end())
+        it->second = val;
 }
 
 const Config * Message::getServerConfig() const {

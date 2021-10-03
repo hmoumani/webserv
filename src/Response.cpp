@@ -107,8 +107,7 @@ void Response::handleCGI(Request const & req)
 		// write(fd[1], "Hello\n", 6);
 		// TODO: check execve return; 
 		if (execve(ar[0], ar, const_cast<char * const *>(v.data())) == -1)
-			throw StatusCodeException(HttpStatus::InternalServerError, getServerConfig());
-		return ;
+			exit(42);
 	}
 	close(fd[1]);
 	close(fd_body[0]);
@@ -469,6 +468,12 @@ void Response::readCgiHeader()
 {
 	std::string temp;
 	size_t pos;
+
+	int status = 0;
+	int ret = waitpid(pid, &status, WNOHANG);
+	if (ret == pid && WEXITSTATUS(status) == 42) {
+		throw StatusCodeException(HttpStatus::InternalServerError, _location);
+	}
 	if (!isCgiHeaderFinished())
 	{
 		char s[2050] = {0};
@@ -480,6 +485,9 @@ void Response::readCgiHeader()
 		pollfd pfd = (pollfd){fd[0], POLLIN};
 		// std::cerr << "Before" << std::endl;
 		int pret = poll(&pfd, 1, -1);
+		if (pfd.revents & 0) {
+			return ;
+		}
 		// std::cerr << "After" << std::endl;
 		if(pret == -1)
 			error("poll failed");

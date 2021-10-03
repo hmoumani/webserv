@@ -153,11 +153,17 @@ int main(int argc, char *argv[]) {
 								response.set_cgi_body(request);
 							}
 						}
+
+						std::cerr << "CGI Header: " << std::boolalpha << response.isCgiHeaderFinished() << std::endl;
+						// if (request.isHeadersFinished() && (!response.is_cgi() || request.isBodyFinished())) {
+
+							if (response.is_cgi() && !response.isCgiHeaderFinished())
+								response.readCgiHeader();
+						// }
 					} catch (const StatusCodeException & e) {
 						std::cerr << "Caught exception: " << e.getStatusCode() << " " << e.what() << std::endl;
 
 						response.setServerConfig(getConnectionServerConfig(connection.parent.getHost(), connection.parent.getPort(), ""));
-						response.insert_header("Connection", "close");
 						response.setErrorPage(e, e.getServer());
 						request.setHeaderFinished(true);
 						request.setBodyFinished(true);
@@ -166,14 +172,12 @@ int main(int argc, char *argv[]) {
 					} catch(const ListingException & e){
 						std::string data = response.listingPage(e);
 						// response.setServerConfig(getConnectionServerConfig(connection.parent.getHost(), connection.parent.getPort(), ""));
-						response.buffer_header.setData(data.c_str(), data.length());
+						request.setHeaderFinished(true);
+						request.setBodyFinished(true);
 						// fds[i].events = POLLOUT;
 					}
 
 					if (request.isHeadersFinished() && (!response.is_cgi() || request.isBodyFinished())) {
-						std::cerr << "CGI Header: " << std::boolalpha << response.isCgiHeaderFinished() << std::endl;
-						if (response.is_cgi() && !response.isCgiHeaderFinished())
-							response.readCgiHeader();
 						
 						if (!response.is_cgi() || response.isCgiHeaderFinished())
 						{
