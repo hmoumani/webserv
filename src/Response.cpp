@@ -2,12 +2,14 @@
 #include "debug.hpp"
 #include <algorithm>
 
-Response::Response() : _is_cgi(false), _status(HttpStatus::StatusCode(200)), sent_body(0), _isCgiHeaderFinished(false), cgiHeader("")
+Response::Response() : _send_end_chunk(false)
 {
+	reset();
 }
 
-Response::Response(Response const & src) : _is_cgi(false), _status(HttpStatus::StatusCode(200)), sent_body(0), _isCgiHeaderFinished(false), cgiHeader("")
+Response::Response(Response const & src) : _send_end_chunk(false)
 {
+	reset();
 	*this = src;
 }
 
@@ -21,6 +23,7 @@ Response &Response::operator=(Response const & src)
 	_server = src._server;
 	_is_cgi = src._is_cgi;
 	sent_body = src.sent_body;
+	_send_end_chunk = src._send_end_chunk;
 	return (*this);
 }
 
@@ -33,7 +36,7 @@ void Response::reset() {
 	sent_body = 0;
 	_isCgiHeaderFinished = false;
 	cgiHeader.str("");
-	
+	// _send_end_chunk = false;
 }
 
 // Response::Response(Request const & req, const Config * config) 
@@ -47,10 +50,10 @@ void Response::handleRequest(Request const & req) {
 
 	// const std::string request_path = getRequestedPath(req, location);
 
-	// std::cerr <<  "****" << req.getRequestTarget() << std::endl; 
-	// std::cerr << _location->root << std::endl;
-	// std::cerr << req.getFilename() << std::endl;
-
+	// debug <<  "****" << req.getRequestTarget() << std::endl;
+	// debug << _location->root << std::endl;
+	// debug << req.getFilename() << std::endl;
+	_send_end_chunk = false;
 	if (_server->location.find(Utils::getFileExtension(req.getFilename())) != _server->location.end()) {
 		_is_cgi = true;
 		if (req.isBodyFinished()) {
@@ -68,7 +71,6 @@ void Response::handleRequest(Request const & req) {
 void Response::handleCGI(Request const & req)
 {
 	std::string filename = req.getFilename();
-	std::cerr << _location->cgi << std::endl;
 	char buff[101] = {0};
 	_is_cgi = true;
 	char * const ar[4] = {const_cast<char *>(_location->cgi.c_str()), const_cast<char *>(filename.c_str()), NULL};
@@ -81,9 +83,9 @@ void Response::handleCGI(Request const & req)
 	{
 		std::vector<const char *> v;
 		v.push_back(strdup((std::string("REQUEST_METHOD") + "=" + req.getMethodName()).c_str()));
-		v.push_back(strdup((std::string("PATH") + "=" + getenv("PATH")).c_str()));
-		v.push_back(strdup((std::string("TERM") + "=" + getenv("TERM")).c_str()));
-		v.push_back(strdup((std::string("HOME") + "=" + getenv("HOME")).c_str()));
+		v.push_back(strdup((std::string("PATH") + "=" + (getenv("PATH") ?: "")).c_str()));
+		v.push_back(strdup((std::string("TERM") + "=" + (getenv("TERM") ?: "")).c_str()));
+		v.push_back(strdup((std::string("HOME") + "=" + (getenv("HOME") ?: "")).c_str()));
 		gethostname(buff, 100);
 		v.push_back(strdup((std::string("HOSTNAME") + "=" + buff).c_str()));
 		getlogin_r(buff, 100);
@@ -97,8 +99,7 @@ void Response::handleCGI(Request const & req)
 		// std::cerr << "len : " << length << std::endl;
 		v.push_back(strdup((std::string("QUERY_STRING") + "=" + req.getRequestTarget().substr(n)).c_str()));
 		v.push_back(strdup((std::string("HTTP_COOKIE") + "=" + req.getHeader("Cookie")).c_str()));
-		std::cerr << "coockes : " << req.getHeader("Cookie") << std::endl;
-		// v.push_back(strdup((std::string("REDIRECT_STATUS") + "=").c_str()));
+		v.push_back(strdup((std::string("REDIRECT_STATUS") + "=").c_str()));
 		v.push_back(NULL);
 		close(fd[0]);
 		close(fd_body[1]);
@@ -119,6 +120,8 @@ void Response::handleCGI(Request const & req)
 	insert_header("Server", SERVER_NAME);
 	insert_header("Transfer-Encoding", "chunked");
 	const char * type = MimeTypes::getType(filename.c_str());
+	if (type)
+		insert_header("Content-Type", type);
 	insert_header("Connection", "keep-alive");
 	insert_header("Accept-Ranges", "bytes");
 }
@@ -130,21 +133,22 @@ void Response::handleGetRequest(Request const & req)
 
 	std::fstream * file = new std::fstream();
 	file->open(filename.c_str());
-	delete _body;
-	_body = file;
+		delete _body;
+		_body = file;
 	stat (filename.c_str(), &fileStat);
 	insert_header("Date", Utils::getDate());
 	insert_header("Server", SERVER_NAME);
 	insert_header("Last-Modified", Utils::time_last_modification(fileStat));
 	insert_header("Transfer-Encoding", "chunked");
 	const char * type = MimeTypes::getType(filename.c_str());
+	if (type)
+		insert_header("Content-Type", type);
 	insert_header("Connection", "keep-alive");
 	insert_header("Accept-Ranges", "bytes");
 }
 
 void Response::handlePostRequest(Request const & req)
 {
-	std::cout << "upload pass :" << req.getServerConfig()->upload << std::endl;
 	std::string filename = req.getFilename();
 	struct stat fileStat;
 
@@ -158,12 +162,91 @@ void Response::handlePostRequest(Request const & req)
 	insert_header("Last-Modified", Utils::time_last_modification(fileStat));
 	insert_header("Transfer-Encoding", "chunked");
 	const char * type = MimeTypes::getType(filename.c_str());
+	if (type)
+		insert_header("Content-Type", type);
 	insert_header("Connection", "keep-alive");
 	insert_header("Accept-Ranges", "bytes");
 }
 
+static void deleteDirectoryFiles(DIR * dir, const std::string & path) {
+	struct dirent * entry = NULL;
+	struct stat st;
+	std::string filepath;
+	DIR * dirp;
+	
+	while ((entry = readdir(dir))) {
+
+		filepath = path + entry->d_name;
+
+		if (std::strcmp(entry->d_name, ".") == 0 || std::strcmp(entry->d_name, "..") == 0) {
+			continue;
+		}
+
+		if (stat(filepath.c_str(), &st) == -1) {
+			std::cerr << "stat(): " << filepath << ": " << strerror(errno) << std::endl;
+		}
+
+		if (S_ISDIR(st.st_mode)) {
+			filepath += "/";
+			if ((dirp = opendir(filepath.c_str()))) {
+				deleteDirectoryFiles(dirp, filepath.c_str());
+			} else {
+				std::cerr << "opendir(): " << filepath.c_str() << ": " << strerror(errno) << std::endl;
+			}
+		} else {
+			if (remove(filepath.c_str()) == -1) {
+				std::cerr << "remove() file: " << filepath.c_str() << ": " << strerror(errno) << std::endl;
+			}
+		}
+	}
+	if (remove(path.c_str()) == -1) {
+		std::cerr << "remove() dir: " << path.c_str() << ": " << strerror(errno) << std::endl;
+	}
+
+}
+
 void Response::handleDeleteRequest(Request const & req)
 {
+	struct stat st;
+	DIR * dirp = NULL;
+
+	errno = 0;
+	if (lstat(req.getFilename().c_str(), &st) == -1) {
+		if (errno == ENOTDIR) {
+			throw StatusCodeException(HttpStatus::Conflict, _location);
+		} else {
+			throw StatusCodeException(HttpStatus::NotFound, _location);
+		}
+	}
+
+	if (S_ISDIR(st.st_mode)) {
+		if (req.getRequestTarget().at(req.getRequestTarget().length() - 1) != '/') {
+			throw StatusCodeException(HttpStatus::Conflict, _location);
+		} else {
+			if ((dirp = opendir(req.getFilename().c_str()))) {
+				deleteDirectoryFiles(dirp, req.getFilename());
+			}
+		}
+	} else {
+		remove(req.getFilename().c_str());
+	}
+
+	if (errno) {
+		perror("");
+	}
+	if (errno == ENOENT || errno == ENOTDIR || errno == ENAMETOOLONG) {
+		throw StatusCodeException(HttpStatus::NotFound, _location);
+    } else if (errno == EACCES || errno == EPERM) {
+		throw StatusCodeException(HttpStatus::Forbidden, _location);
+    } else if (errno == EEXIST) {
+		throw StatusCodeException(HttpStatus::MethodNotAllowed, _location);
+    } else if (errno == ENOSPC) {
+		throw StatusCodeException(HttpStatus::InsufficientStorage, _location);
+    } else if (errno) {
+		throw StatusCodeException(HttpStatus::InternalServerError, _location);
+    } else {
+		throw StatusCodeException(HttpStatus::NoContent, _location);
+	}
 
 }
 
@@ -218,18 +301,16 @@ std::string Response::HeadertoString()
 	// 		// _headers[line.substr(0, start)] = trim(str);
 	// 	}
 	// }
+
+	// debug << this->_status << std::endl;
 	response << "HTTP/1.1 " << this->_status << " " << reasonPhrase(this->_status) << CRLF;
-	std::cerr << response.str() << std::endl;
+	// debug << response.str() << std::endl;
 	for (std::multimap<std::string, std::string>::iterator it = _headers.begin(); it != _headers.end(); ++it)
 	{
 		response << it->first << ": " << it->second << CRLF;
 	}
 	response << CRLF;
 	return (response.str());
-}
-
-const std::iostream * Response::getFile() const {
-	return _body;
 }
 
 // void    Response::send_file(Socket & connection)
@@ -254,47 +335,72 @@ const std::iostream * Response::getFile() const {
 
 void	Response::readFile() {
 
-	if (!_is_cgi)
+	std::stringstream ss;
+	ssize_t size;
+
+	buffer_body.resize(1024 + 7);
+	if (!_is_cgi || getBodySize())
 	{
-		buffer_body.resize(1024);
-		_body->read(buffer_body.data, buffer_body.size);
-		std::streamsize s = ((*_body) ? buffer_body.size : _body->gcount());
-		buffer_body.resize(s);
+		_body->read(buffer_body.data + 5, buffer_body.size - 7);
+		size = ((*_body) ? buffer_body.size - 7 : _body->gcount());    
 	}
 	else
 	{
-		pollfd pfd = (pollfd){fd[0], POLLIN};
+		pollfd pfd = (pollfd){fd[0], POLLIN, 0};
 		close(fd[1]);
-		// waitpid(pid, NULL, 0);
-		buffer_body.resize(1024);
+
+		// buffer_body.resize(1024);
+
 		int pret = poll(&pfd, 1, -1);
-		if (pret == -1)
-			error("poll failed");
-		int ret = read(fd[0], buffer_body.data, 1024);
-		if (ret == 0) {
-			_is_cgi = false;
-			close(fd[0]);
+		if (pfd.revents & 0) {
+			return ;
 		}
-		if (ret != 1024) {
-			buffer_body.resize(ret);
+		if (pret == -1) {
+			error("poll failed");
+		}
+
+	
+		size = read(fd[0], buffer_body.data + 5, buffer_body.size - 7);
+
+		if (size == 0) {
+			// debug << "Close " << fd[0] << std::endl;
+			_is_cgi = false;
+			// close(fd[0]);
+		} else if (size == -1) {
+			throw StatusCodeException(HttpStatus::InternalServerError, _location);
 		}
 	}
+
+	if (size == 0) {
+		// close(fd[0]);
+		// close(fd_body[1]);
+		_send_end_chunk = true;
+	}
+	buffer_body.data[size + 7 - 2] = '\r';
+	buffer_body.data[size + 7 - 1] = '\n';
+
+	ss << std::setfill('0') << std::setw(3) << std::hex << size << CRLF;
+
+	std::memcpy(buffer_body.data, ss.str().c_str(), ss.str().length());
+	buffer_body.resize(ss.str().length() + size + 2);
 }
 
 std::stringstream * errorTemplate(const StatusCodeException & e) {
 	std::stringstream * alloc = new std::stringstream("");
 	std::stringstream & body = *alloc;
 
-	body << "<!DOCTYPE html>\n" ;
-	body << "<html lang=\"en\">\n";
-	body << "<head>\n";
-    body << "<title>" << e.getStatusCode() << "</title>\n";
-	body << "</head>\n";
-	body << "<body>\n";
-    body << "<h1 style=\"text-align:center\">" << e.getStatusCode() << " - " << HttpStatus::reasonPhrase(e.getStatusCode()) << "</h1>\n";
-	body << "<hr>\n";
-	body << "<h4 style=\"text-align:center\">WebServer</h4>\n";
-	body << "</body>\n";
+	if (e.getStatusCode() >= 400) {
+		body << "<!DOCTYPE html>\n" ;
+		body << "<html lang=\"en\">\n";
+		body << "<head>\n";
+		body << "<title>" << e.getStatusCode() << "</title>\n";
+		body << "</head>\n";
+		body << "<body>\n";
+		body << "<h1 style=\"text-align:center\">" << e.getStatusCode() << " - " << HttpStatus::reasonPhrase(e.getStatusCode()) << "</h1>\n";
+		body << "<hr>\n";
+		body << "<h4 style=\"text-align:center\">WebServer</h4>\n";
+		body << "</body>\n";
+	}
 
 	return &body;
 }
@@ -302,6 +408,7 @@ std::stringstream * errorTemplate(const StatusCodeException & e) {
 
 void Response::setErrorPage(const StatusCodeException & e, const Config * location) {
 	_status = e.getStatusCode();
+	// std::cerr << "S: " << this->_status << std::endl;
 
 	// _headers["Connection"] = "keep-alive";
 	// _headers["Content-Type"] = "text/html";
@@ -315,10 +422,8 @@ void Response::setErrorPage(const StatusCodeException & e, const Config * locati
 	if (e.getLocation() != ""){
 		// _headers["Location"] = e.getLocation();
 		insert_header("Location", e.getLocation());
-		dout << "Location: " << e.getLocation() <<  CRLF;
 	}
 
-	std::stringstream * err;
 
 	const std::map<int, std::string> & error_page = location->error_page.empty() ? _server->error_page : location->error_page;
 
@@ -364,10 +469,10 @@ char *getFileCreationTime(const char *path, char *format)
 }
 
 
-std::string Response::listingPage(const ListingException & e)
+void Response::listingPage(const ListingException & e)
 {
 	std::stringstream header("");
-	std::stringstream *body = new std::stringstream("");
+	// std::stringstream *body = _body;
 
 	// _headers["Connection"] = "keep-alive";
 	// _headers["Content-Type"] = "text/html";
@@ -380,14 +485,14 @@ std::string Response::listingPage(const ListingException & e)
 	insert_header("Server", SERVER_NAME);
 	insert_header("Transfer-Encoding", "chunked");
 	
-
+	
 	DIR *dir;
 	struct dirent *ent;
-	*body << "<!DOCTYPE html>\n" ;
-	*body << "<html>\n";
-	*body << "<head><title>Index of " << e.getReqTarget() << "</title></head>\n";
-	*body << "<body bgcolor=\"white\">\n";
-	*body << "<h1>Index of " << e.getReqTarget() << "</h1><hr><pre><a href=\"" << e.getReqTarget().substr(0, e.getReqTarget().find_last_of('/', e.getReqTarget().length() - 2)) << "/\">../</a>\n";
+	*_body << "<!DOCTYPE html>\n" ;
+	*_body << "<html>\n";
+	*_body << "<head><title>Index of " << e.getReqTarget() << "</title></head>\n";
+	*_body << "<body bgcolor=\"white\">\n";
+	*_body << "<h1>Index of " << e.getReqTarget() << "</h1><hr><pre><a href=\"" << e.getReqTarget().substr(0, e.getReqTarget().find_last_of('/', e.getReqTarget().length() - 2)) << "/\">../</a>\n";
 
 	if ((dir = opendir (e.what())) != NULL) {
 		while ((ent = readdir (dir)) != NULL) {
@@ -396,8 +501,8 @@ std::string Response::listingPage(const ListingException & e)
 			std::string file_path = e.getPath() + std::string(ent->d_name);
 			if (!strcmp(".", ent->d_name) || !strcmp("..", ent->d_name) || !(stat(file_path.c_str(), &attr) == 0 && S_ISDIR(attr.st_mode)))
 				continue ;
-			*body << "<a href=\"" << ent->d_name << "/\">" << ent->d_name << "/</a> " << std::setw(69 - strlen(ent->d_name)) << getFileCreationTime(file_path.c_str(), format);
-			*body << "                   -\n";
+			*_body << "<a href=\"" << ent->d_name << "/\">" << ent->d_name << "/</a> " << std::setw(69 - strlen(ent->d_name)) << getFileCreationTime(file_path.c_str(), format);
+			*_body << "                   -\n";
 		}
 		closedir (dir);
 	}
@@ -409,18 +514,18 @@ std::string Response::listingPage(const ListingException & e)
 			std::string file_path = e.getPath() + std::string(ent->d_name);
 			if (!strcmp(".", ent->d_name) || !strcmp("..", ent->d_name) || (stat(file_path.c_str(), &attr) == 0 && S_ISDIR(attr.st_mode)))
 				continue ;
-			*body << "<a href=\"" << ent->d_name << "\">" << ent->d_name << "</a> " << std::setw(70 - strlen(ent->d_name)) << getFileCreationTime(file_path.c_str(), format);
-			*body << std::setw(20);
-			*body << attr.st_size;
-			*body << "\n";
+			*_body << "<a href=\"" << ent->d_name << "\">" << ent->d_name << "</a> " << std::setw(70 - strlen(ent->d_name)) << getFileCreationTime(file_path.c_str(), format);
+			*_body << std::setw(20);
+			*_body << attr.st_size;
+			*_body << "\n";
 		}
 		closedir (dir);
 	}
-	*body << "</pre><hr></body>\n</html>\n";
+	*_body << "</pre><hr></body>\n</html>\n";
 	// header << "Content-Length: " << (*body).str().length() << CRLF << CRLF;
-	header << (*body).str();
-	_body = body;
-	return header.str();
+	// header << (*body).str();
+	// _body = body;
+	// return header.str();
 }
 
 bool Response::is_cgi() const
@@ -430,26 +535,45 @@ bool Response::is_cgi() const
 
 bool Response::isSendingBodyFinished(const Request & request) const
 {
-	return request.getBodySize() == sent_body || request.getBodySize() == 0;
+	return request.getBodySize() == (unsigned long)sent_body || request.getBodySize() == 0;
 }
 
 void Response::set_cgi_body(const Request & request)
 {
 	char buff[BUFFER_SIZE] = {0};
+	ssize_t ret;
 	// close(fd_body[0]);
 	// sent_body = request.getBody()->tellg();
 	// std::cerr << "tellg " << request.getBody()->tellg() << std::endl;
 	// std::cerr  << "sent " << sent_body << "/" << request.getBodySize() << std::endl;
 	// while (sent_body < request.getBodySize()){
-		std::streampos n = std::min((std::streampos)(request.getBodySize() - request.getBody()->tellg()), (std::streampos)(BUFFER_SIZE));
-		request.getBody()->read(buff, n);
-		// std::streamsize n = 47; // request.getBody()->tellg();
-		sent_body += n;
-		// std::cerr  << "sent :" << n << "=>" <<  sent_body << "/" << request.getBodySize() << std::endl;
-		write(fd_body[1], buff, n);
-		if (isSendingBodyFinished(request)) {
-			close(fd_body[1]);
+
+	pollfd pfd = (pollfd){fd_body[1], POLLOUT, 0};
+
+	int pret = poll(&pfd, 1, 0);
+	if (pfd.revents & 0) {
+		return ;
+	}
+
+	if (pret == -1)
+		error("poll failed");
+
+	
+	std::streampos n = std::min((std::streampos)(request.getBodySize() - request.getBody()->tellg()), (std::streampos)(BUFFER_SIZE));
+	request.getBody()->read(buff, n);
+	// std::streamsize n = 47; // request.getBody()->tellg();
+	sent_body += n;
+	// std::cerr  << "sent :" << n << "=>" <<  sent_body << "/" << request.getBodySize() << std::endl;
+	if (n > 0) {
+		ret = write(fd_body[1], buff, n);
+		if (ret == 0 || ret == -1) {
+			throw StatusCodeException(HttpStatus::InternalServerError, _location);
 		}
+	}
+	if (isSendingBodyFinished(request)) {
+		close(fd_body[1]);
+	}
+
 	// }
 	// close(fd_body[1]);
 }
@@ -482,18 +606,19 @@ void Response::readCgiHeader()
 		int ret = 0;
 		// size_t pos;
 		// std::cerr << "fd: " << fd[0] << std::endl;
-		pollfd pfd = (pollfd){fd[0], POLLIN};
+		pollfd pfd = (pollfd){fd[0], POLLIN, 0};
 		// std::cerr << "Before" << std::endl;
 		int pret = poll(&pfd, 1, -1);
-		if (pfd.revents & 0) {
+		if (pfd.revents & 0 || !(pfd.revents & POLLIN)) {
 			return ;
 		}
 		// std::cerr << "After" << std::endl;
 		if(pret == -1)
 			error("poll failed");
 		ret = read(fd[0], s, 2049);
-		if (ret == -1)
-			return ;
+		if (ret == 0 || ret == -1) {
+			throw StatusCodeException(HttpStatus::InternalServerError, _location);
+		}
 		cgiHeader << s;
 		// std::cerr << "ret: " << ret << std::endl;
 		// if (ret <= 0)
@@ -511,7 +636,10 @@ void Response::readCgiHeader()
 		}
 		if (isCgiHeaderFinished()) 
 		{
-			buffer_body.setData(temp.substr(pos).c_str(), temp.substr(pos).length());
+			// buffer_body.setData(temp.substr(pos).c_str(), temp.substr(pos).length());
+			std::string sub = temp.substr(pos);
+			_body->write(sub.c_str(), sub.length());
+			setBodySize(sub.length());
 			std::stringstream ss(temp.substr(0, pos));
 			std::string line;
 			while (std::getline(ss, line))
@@ -542,4 +670,12 @@ void Response::readCgiHeader()
 	// 		// _headers[line.substr(0, start)] = trim(str);
 	// 	}
 	// }
+}
+
+bool Response::isEndChunkSent() const {
+	return _send_end_chunk;
+}
+
+void Response::setEndChunkSent(bool isSent) {
+	_send_end_chunk = isSent;
 }

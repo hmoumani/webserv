@@ -13,7 +13,7 @@
 #define STATUS_CODE_HPP
 
 #include <string>
-
+#include "debug.hpp"
 /*! Namespace for HTTP status codes and reason phrases.
  */
 
@@ -31,6 +31,7 @@ namespace HttpStatus
  */
 enum StatusCode
 {
+	None			   = 0,
 	/*####### 1xx - Informational #######*/
 	/* Indicates an interim response for communicating connection status
 	 * or request progress prior to completing the requested action and
@@ -137,6 +138,8 @@ inline const char * reasonPhrase(StatusCode code)
 {
 	switch (code)
 	{
+
+	case 0: return "None";
 
 	//####### 1xx - Informational #######
 	case 100: return "Continue";

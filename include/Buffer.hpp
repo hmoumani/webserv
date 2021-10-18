@@ -43,6 +43,14 @@ public:
             pos = 0;
             return ;   
         }
+        if (new_size == 0) {
+            if (data) {
+                delete [] data;
+                data = NULL;
+            }
+            pos = 0;
+            size = 0;
+        }
 
         char *new_data = new char[new_size];
 

@@ -121,11 +121,20 @@ void Message::reset() {
 
 	_server = NULL;
 	_location = NULL;
+    _body_size = 0;
 }
 
 
 size_t Message::getBodySize() const {
-    return _body_size;
+    int tmp = _body->tellg();
+    int len;
+    // if (!_body_size) {
+    _body->seekg(0, _body->end);
+    len = _body->tellg();
+    _body->seekg(tmp, _body->beg);
+    return len;
+    // }
+    // return _body_size;
 }
 
 void Message::setBodySize(size_t size) {

@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <algorithm>
 // #include "Socket.hpp"
+
 class Socket;
 
 class Config {
@@ -33,13 +34,13 @@ public:
 
     std::map<std::string, Config> location;
 
-    std::vector<Method> methods;
+    std::set<Method> methods;
     std::string root;
     std::pair<HttpStatus::StatusCode, std::string> redirect;
     bool listing;
     std::vector<std::string> index;
     std::string cgi;
-    std::string upload;
+    bool upload;
 
     Socket *socket;
     std::string uri;

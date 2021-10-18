@@ -8,9 +8,10 @@ Config::Config() {
     host = "0.0.0.0";
     root = cwd;
     max_body_size = 1000000; // default 1m
-    redirect.first = static_cast<HttpStatus::StatusCode>(0);
+    redirect.first = HttpStatus::None;
     listing = false;
     socket = NULL;
+    upload = false;
     free(cwd);
 }
 

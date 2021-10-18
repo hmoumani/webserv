@@ -8,7 +8,7 @@
 #include "ListingException.hpp"
 #include "Socket.hpp"
 // #include "webserv.hpp"
-#define BUFFER_SIZE 1024 * 1024
+#define BUFFER_SIZE 1024 * 16
 
 class Socket;
 
@@ -41,6 +41,8 @@ private:
 
     std::string _filename;
 
+    bool _upload;
+
     bool parse();
     size_t receiveBody();
     void openBodyFile();
@@ -53,7 +55,7 @@ public:
     Request(const Socket & connection) throw (StatusCodeException);
     ~Request();
 
-    const Method getMethod() const;
+    Method getMethod() const;
     std::string getMethodName() const;
     const std::string & getRequestTarget() const;
     const std::string & getHTTPVersion() const;

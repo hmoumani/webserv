@@ -11,18 +11,18 @@ enum ParseError {
     INVALID_METHOD, DUPLICATE_METHOD, DUPLICATE_LOCATION
 };
 
-static const size_t NUM_DIRECTIVES = 14;
+static const size_t NUM_DIRECTIVES = 13;
 static const std::string directives[] = {
     "server", "location", "listen", "server_name", // Server directives
-    "error_page", "max_body_size", "root", "listing", "index", "http_method", "http_redirection",  // Server & Location directives
+    "error_page", "max_body_size", "root", "listing", "index", "http_method",  // Server & Location directives
     "redirect", "cgi_pass", "upload_pass"};  // Location directives
 
 static const size_t server_index = 4;
-static const size_t location_index = 11;
+static const size_t location_index = 10;
 
-static char tokens[] = {'{', '}', ';'};
+// static char tokens[] = {'{', '}', ';'};
 
-static char delimiter;
+// static char delimiter;
 
 static void error(ParseError err, const std::string arg) {
     if (err == UNEXPECTED_SYMBOL) {
@@ -76,7 +76,7 @@ static bool isLocation(const std::string & directive) {
 }
 
 static bool isDirective(const std::string & dir) {
-    for (int i = 0; i < NUM_DIRECTIVES; ++i) {
+    for (size_t i = 0; i < NUM_DIRECTIVES; ++i) {
         if (dir == directives[i]) {
             return true;
         }
@@ -119,7 +119,7 @@ static size_t convertSize(const std::string & str) {
     size_t size = std::atol(str.c_str());
     char measure = std::tolower(str[len - 1]);
     if (isdigit(str[0]) && (isdigit(measure) || measures.find(measure) != std::string::npos)) {
-        for (int i = 0; i < len - 1; ++i) {
+        for (size_t i = 0; i < len - 1; ++i) {
             if (!isdigit(str[i])) {
                 return std::string::npos;
             }
@@ -139,7 +139,7 @@ static size_t convertSize(const std::string & str) {
 }
 
 static bool isnumber(const std::string & number) {
-    for (int i = 0; i < number.length(); ++i) {
+    for (size_t i = 0; i < number.length(); ++i) {
         if (!std::isdigit(number[i])) {
             return false;
         }
@@ -200,26 +200,27 @@ static void parse(std::ifstream & file) {
 
         if (directive[0] == "http_method" && directive.size() > 2) {
             config->methods.clear();
-            for (int i = 1; i < directive.size() - 1; ++i) {
+            for (size_t i = 1; i < directive.size() - 1; ++i) {
                 Method method = getMethodFromName(directive[i]);
                 if (method == UNKNOWN) {
                     error(INVALID_METHOD, directive[i]);
                 } else if (std::find(config->methods.begin(), config->methods.end(), method) != config->methods.end()) {
                     error(DUPLICATE_METHOD, directive[i]);
                 }
-                config->methods.push_back(method);
+                config->methods.insert(method);
             }
         } else if (directive[0] == "index" && directive.size() > 2) {
             config->index.clear();
-            for (int i = 1; i < directive.size() - 1; ++i) {
+            for (size_t i = 1; i < directive.size() - 1; ++i) {
                 config->index.push_back(directive[i]);
             }
         } else if (directive[0] == "error_page" && directive.size() > 3) {
-            for (int i = 1; i < directive.size() - 2; ++i) {
-                if (!isnumber(directive[i])) {
+            for (size_t i = 1; i < directive.size() - 2; ++i) {
+                HttpStatus::StatusCode code = (HttpStatus::StatusCode) std::atoi(directive[i].c_str());
+                if (!isnumber(directive[i]) || !isVadilCode(code)) {
                     error(INVALID_ERROR_CODE, directive[i]);
                 }
-                config->error_page.insert(make_pair(std::atoi(directive[i].c_str()), directive[directive.size() - 2]));
+                config->error_page.insert(make_pair(code, directive[directive.size() - 2]));
             }
         } else if (directive.size() == 1 && directive[0] == "}") {
             if (curr_location) {
@@ -235,6 +236,13 @@ static void parse(std::ifstream & file) {
             } else {
                 error(INVALID_ARGUMENTS, directive[0]);
             }
+        } else if ((directive.size() == 3 || directive.size() == 4) && directive[0] == "redirect") {
+            HttpStatus::StatusCode code = (HttpStatus::StatusCode) std::atoi(directive[1].c_str());
+            if (!isnumber(directive[1]) || !isVadilCode(code)) {
+                error(INVALID_STATUS_CODE, directive[1]);
+            }
+            config->redirect.first = code;
+            config->redirect.second = directive.size() == 4 ? directive[2] : "";
         } else if (directive.size() == 3) {
             if (directive[0] == "location") {
                 if (curr_server->location.find(directive[1]) == curr_server->location.end()) {
@@ -254,7 +262,7 @@ static void parse(std::ifstream & file) {
             } else if (directive[0] == "max_body_size") {
                 config->max_body_size = convertSize(directive[1]);
             } else if (directive[0] == "upload_pass") {
-                config->upload = directive[1];
+                config->upload = directive[1] == "on";
             } else if (directive[0] == "cgi_pass") {
                 config->cgi = directive[1];
             } else {
@@ -267,17 +275,9 @@ static void parse(std::ifstream & file) {
                     error(INVALID_PORT, directive[2]);
                 }
                 config->port = std::atoi(directive[2].c_str());
-            } else if (directive[0] == "redirect") {
-                if (!isnumber(directive[1])) {
-                    error(INVALID_STATUS_CODE, directive[1]);
-                }
-                HttpStatus::StatusCode code = (HttpStatus::StatusCode) std::atoi(directive[1].c_str());
-                config->redirect.first = code;
-                config->redirect.second = directive[2];
             } else {
                 error(INVALID_ARGUMENTS, directive[0]);
             }
-            
         } else {
             error(INVALID_ARGUMENTS, directive[0]);
         }
@@ -297,8 +297,12 @@ void open_config_file(int argc, char *argv[]) {
             // std::string token;
             parse(file);
             file.close();
+            if (servers.empty()) {
+                std::cerr << argv[0] << ": there is no server!" << std::endl;
+                exit(EXIT_FAILURE);
+            }
         } else {
-            std::cerr << argv[0] << ": Can't open file!" << std::endl;
+            std::cerr << argv[0] << ": open(): " << strerror(errno) << std::endl;
             exit(EXIT_FAILURE);
         }
     } else {

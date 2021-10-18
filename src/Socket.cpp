@@ -106,32 +106,31 @@ ssize_t Socket::recv(void *buf, size_t n) const {
 // }
 
 void Socket::send(Response & res) const {
-    // std::cerr << "BEFORE: " << buffer.length()  << std::endl;
     Buffer * buffer; 
+
     if (res.buffer_header.length() != 0) {
         buffer = &res.buffer_header;
     } else {
         buffer = &res.buffer_body;
-        if (buffer->pos == 0) {
-            std::stringstream ss;
-            ss << std::hex << buffer->length() << CRLF;
-            // std::cerr << "sent: " << ss.str() << std::endl;
-            // write(2, ss.str().c_str(), ss.str().length());
-            ::send(_fd, ss.str().c_str(), ss.str().length(), 0);
+    }
+
+    // debug << "------\n";
+    if (buffer->length() > 0) {
+        // write(2, buffer->data + buffer->pos, buffer->length());
+        int bytes = ::send(_fd, buffer->data + buffer->pos, buffer->length(), 0);
+
+        if (bytes > 0) {
+            buffer->pos += bytes;
+        } else {
+            throw StatusCodeException(HttpStatus::None, NULL);
         }
     }
-        // write(2, buffer->data + buffer->pos, buffer->length());
-    int bytes = ::send(_fd, buffer->data + buffer->pos, buffer->length(), 0);
+    // debug << "------\n";
 
-    // std::cerr << "SENT: " << bytes << std::endl;
-    if (bytes != -1) {
-        buffer->pos += bytes;
-    }
-
-    if (res.buffer_body.length() == 0 && res.buffer_body.size != 0) {
-        // write(2, "\r\n", 2);
-        ::send(_fd, "\r\n", 2, 0);
-    }
+    // if (res.buffer_body.length() == 0 && res.buffer_body.size != 0) {
+    //     // write(2, "\r\n", 2);
+    //     ::send(_fd, "\r\n", 2, 0);
+    // }
 }
 
 void Socket::error(std::string message) const {
