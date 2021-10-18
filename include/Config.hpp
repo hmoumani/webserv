@@ -44,6 +44,8 @@ public:
 
     Socket *socket;
     std::string uri;
+
+    bool isPrimary;
 };
 
 const Config * getConnectionServerConfig(const std::string & hostname, const int port, const std::string & server_name);

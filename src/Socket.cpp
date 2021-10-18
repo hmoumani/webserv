@@ -116,7 +116,7 @@ void Socket::send(Response & res) const {
 
     // debug << "------\n";
     if (buffer->length() > 0) {
-        // write(2, buffer->data + buffer->pos, buffer->length());
+        write(2, buffer->data + buffer->pos, buffer->length());
         int bytes = ::send(_fd, buffer->data + buffer->pos, buffer->length(), 0);
 
         if (bytes > 0) {

@@ -224,7 +224,7 @@ bool Request::parse() {
             if (_headers.find("Transfer-Encoding") == _headers.end() && _headers.find("Content-Length") == _headers.end()) {
                 _bparser.end = true;
             }
-                if (_headers.find("Host") == _headers.end()) {
+            if (_headers.find("Host") == _headers.end()) {
                 throw StatusCodeException(HttpStatus::BadRequest, _server);
             }
             checkRequestTarget();
@@ -373,8 +373,8 @@ void Request::openBodyFile() {
         filename << "/tmp/" << std::setfill('0') << std::setw(10) << file_id++;
     }
 
-    debug << "body filename: " << filename.str() << std::endl;
-    debug << "Body: " << body_ss->str() << std::endl;
+    // debug << "body filename: " << filename.str() << std::endl;
+    // debug << "Body: " << body_ss->str() << std::endl;
 
     _body = new std::fstream(filename.str().c_str(), std::fstream::in | std::fstream::out | std::fstream::trunc);
 

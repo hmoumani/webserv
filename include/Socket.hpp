@@ -16,7 +16,9 @@
 #include <sstream>
 #include "Buffer.hpp"
 #include "Response.hpp"
+
 class Response;
+
 enum TypeSocket {BlockingSocket, NonBlockingSocket};
 
 class Socket {

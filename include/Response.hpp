@@ -71,6 +71,10 @@ class Response : public Message
         void reset();
         bool isEndChunkSent() const;
         void setEndChunkSent(bool isSent);
+        void closeFdBody();
+        void closeFd();
+
+
 };
 
 std::stringstream * errorPage(const StatusCodeException & e);

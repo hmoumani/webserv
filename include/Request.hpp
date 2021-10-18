@@ -8,7 +8,7 @@
 #include "ListingException.hpp"
 #include "Socket.hpp"
 // #include "webserv.hpp"
-#define BUFFER_SIZE 1024 * 16
+#define BUFFER_SIZE 1024
 
 class Socket;
 

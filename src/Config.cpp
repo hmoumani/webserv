@@ -12,6 +12,8 @@ Config::Config() {
     listing = false;
     socket = NULL;
     upload = false;
+    isPrimary = true;
+
     free(cwd);
 }
 
@@ -31,6 +33,7 @@ Config::Config(const Config & config) {
     upload = config.upload;
     socket = config.socket;
     uri = config.uri;
+    isPrimary = config.isPrimary;
 }
 
 const Config * getConnectionServerConfig(const std::string & hostname, const int port, const std::string & server_name) {

@@ -28,6 +28,8 @@
 #include "Response.hpp"
 #include "Config.hpp"
 
+#define MAX_CONNECTION 128
+
 typedef int sockid_t;
 // extern std::vector<Config> servers;
 

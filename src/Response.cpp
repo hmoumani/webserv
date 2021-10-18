@@ -13,7 +13,10 @@ Response::Response(Response const & src) : _send_end_chunk(false)
 	*this = src;
 }
 
-Response::~Response(){}
+Response::~Response(){
+	// close(fd[0]);
+	// close(fd_body[1]);
+}
 
 Response &Response::operator=(Response const & src)
 {
@@ -105,6 +108,8 @@ void Response::handleCGI(Request const & req)
 		close(fd_body[1]);
 		dup2(fd[1], 1);
 		dup2(fd_body[0], 0);
+		close(fd[1]);
+		close(fd_body[0]);
 		// write(fd[1], "Hello\n", 6);
 		// TODO: check execve return; 
 		if (execve(ar[0], ar, const_cast<char * const *>(v.data())) == -1)
@@ -339,7 +344,7 @@ void	Response::readFile() {
 	ssize_t size;
 
 	buffer_body.resize(1024 + 7);
-	if (!_is_cgi || getBodySize())
+	if (!_is_cgi || (getBodySize() != 0 && getBodySize() != std::string::npos))
 	{
 		_body->read(buffer_body.data + 5, buffer_body.size - 7);
 		size = ((*_body) ? buffer_body.size - 7 : _body->gcount());    
@@ -347,7 +352,6 @@ void	Response::readFile() {
 	else
 	{
 		pollfd pfd = (pollfd){fd[0], POLLIN, 0};
-		close(fd[1]);
 
 		// buffer_body.resize(1024);
 
@@ -365,9 +369,10 @@ void	Response::readFile() {
 		if (size == 0) {
 			// debug << "Close " << fd[0] << std::endl;
 			_is_cgi = false;
-			// close(fd[0]);
+			closeFd();
 		} else if (size == -1) {
-			throw StatusCodeException(HttpStatus::InternalServerError, _location);
+			debug << "1" << std::endl;
+			return;
 		}
 	}
 
@@ -431,10 +436,15 @@ void Response::setErrorPage(const StatusCodeException & e, const Config * locati
 
 	if (error_page.find(_status) != error_page.end()) {
 		errPage = new std::fstream();
-		std::string filename = location->root;
+		std::string errPath = error_page.find(_status)->second;
+		if (errPath[0] == '/') {
+			errPage->open(errPath);
+		} else {
+			std::string filename = location->root;
 
-		filename += error_page.find(_status)->second;
-		errPage->open(filename.c_str());
+			filename += errPath;
+			errPage->open(filename.c_str());
+		}
 	}
 
 	delete _body;
@@ -567,17 +577,27 @@ void Response::set_cgi_body(const Request & request)
 	if (n > 0) {
 		ret = write(fd_body[1], buff, n);
 		if (ret == 0 || ret == -1) {
+			debug << "2" << std::endl;
+
 			throw StatusCodeException(HttpStatus::InternalServerError, _location);
 		}
 	}
-	if (isSendingBodyFinished(request)) {
-		close(fd_body[1]);
-	}
-
 	// }
 	// close(fd_body[1]);
 }
 
+void Response::closeFdBody() {
+	if (fd_body[1] > 2) {
+		close(fd_body[1]);
+		fd_body[1] = 0;
+	}
+}
+void Response::closeFd() {
+	if (fd[0] > 2) {
+		close(fd[0]);
+		fd[0] = 0;
+	}
+}
 
 HttpStatus::StatusCode Response::getStatusCode() const {
 	return _status;
@@ -596,6 +616,7 @@ void Response::readCgiHeader()
 	int status = 0;
 	int ret = waitpid(pid, &status, WNOHANG);
 	if (ret == pid && WEXITSTATUS(status) == 42) {
+		debug << "3" << std::endl;
 		throw StatusCodeException(HttpStatus::InternalServerError, _location);
 	}
 	if (!isCgiHeaderFinished())
@@ -605,34 +626,33 @@ void Response::readCgiHeader()
 		// buff.data[1024] = 0;
 		int ret = 0;
 		// size_t pos;
-		// std::cerr << "fd: " << fd[0] << std::endl;
 		pollfd pfd = (pollfd){fd[0], POLLIN, 0};
-		// std::cerr << "Before" << std::endl;
 		int pret = poll(&pfd, 1, -1);
 		if (pfd.revents & 0 || !(pfd.revents & POLLIN)) {
 			return ;
 		}
-		// std::cerr << "After" << std::endl;
 		if(pret == -1)
 			error("poll failed");
 		ret = read(fd[0], s, 2049);
-		if (ret == 0 || ret == -1) {
+
+		if (ret == -1) {
 			throw StatusCodeException(HttpStatus::InternalServerError, _location);
-		}
-		cgiHeader << s;
-		// std::cerr << "ret: " << ret << std::endl;
-		// if (ret <= 0)
-		// 	return "";
-		// s[total] = 0;
-		temp = cgiHeader.str();
-		if ((pos = temp.find("\r\n\r\n")) != std::string::npos){
-			pos += 4;
-			_isCgiHeaderFinished = true;
-			
-		}
-		else if ((pos = temp.find("\n\n")) != std::string::npos){
-			pos += 2;
-			_isCgiHeaderFinished = true;
+		} else if (ret != 0) {
+			cgiHeader << s;
+			// std::cerr << "ret: " << ret << std::endl;
+			// if (ret <= 0)
+			// 	return "";
+			// s[total] = 0;
+			temp = cgiHeader.str();
+			if ((pos = temp.find("\r\n\r\n")) != std::string::npos){
+				pos += 4;
+				_isCgiHeaderFinished = true;
+				
+			}
+			else if ((pos = temp.find("\n\n")) != std::string::npos){
+				pos += 2;
+				_isCgiHeaderFinished = true;
+			}
 		}
 		if (isCgiHeaderFinished()) 
 		{

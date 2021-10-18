@@ -9,7 +9,9 @@ $(NAME):$(SRC)
 	clang++ $(FLAGS) $(SRC) -Iinclude -o $@
 
 debug:$(SRC)
-	clang++ $(FLAGS) -g -glldb -fsanitize=address  $(SRC) -Iinclude -o $(NAME)
+	clang++ -g3 -fsanitize=address  $(SRC) -Iinclude -o $(NAME)
+prof:$(SRC)
+	g++ -pg -g3  -fsanitize=address  $(SRC) -Iinclude -o $(NAME)
 
 clean:
 	@rm -rf $(NAME)
