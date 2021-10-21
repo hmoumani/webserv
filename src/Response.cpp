@@ -39,14 +39,22 @@ void Response::reset() {
 	sent_body = 0;
 	_isCgiHeaderFinished = false;
 	cgiHeader.str("");
-	// _send_end_chunk = false;
+
+	fd_body[1] = -1;
+	fd[0] = -1;
+	_send_end_chunk = false;
+
+	_send_header = false;
+	_send_body = false;
+	_is_request_handled = false;
+
 }
 
 // Response::Response(Request const & req, const Config * config) 
 // {
 // }
 
-void Response::handleRequest(Request const & req) {
+void Response::handleRequest(Request const & req, Socket const & sock) {
 	this->_server = req.getServerConfig();
 	this->_location = req.getLocation();
 	// const Config * location = getLocation(req, _server);
@@ -60,18 +68,23 @@ void Response::handleRequest(Request const & req) {
 	if (_server->location.find(Utils::getFileExtension(req.getFilename())) != _server->location.end()) {
 		_is_cgi = true;
 		if (req.isBodyFinished()) {
-			this->handleCGI(req);
+			this->handleCGI(req, sock);
+		} else {
+			return;
 		}
-	}
-	else if (req.getMethod() == GET)
+	} else if (req.getMethod() == GET) {
 		this->handleGetRequest(req);
-	else if (req.getMethod() == POST)
+	} else if (req.getMethod() == POST) {
 		this->handlePostRequest(req);
-	else if (req.getMethod() == DELETE)
+	} else if (req.getMethod() == DELETE) {
 		this->handleDeleteRequest(req);
+	} else {
+		return ;
+	}
+	_is_request_handled = true;
 }
 
-void Response::handleCGI(Request const & req)
+void Response::handleCGI(Request const & req, Socket const & sock)
 {
 	std::string filename = req.getFilename();
 	char buff[101] = {0};
@@ -87,6 +100,7 @@ void Response::handleCGI(Request const & req)
 		std::vector<const char *> v;
 		v.push_back(strdup((std::string("REQUEST_METHOD") + "=" + req.getMethodName()).c_str()));
 		v.push_back(strdup((std::string("PATH") + "=" + (getenv("PATH") ?: "")).c_str()));
+		v.push_back(strdup((std::string("AUTH_TYPE") + "=null").c_str()));
 		v.push_back(strdup((std::string("TERM") + "=" + (getenv("TERM") ?: "")).c_str()));
 		v.push_back(strdup((std::string("HOME") + "=" + (getenv("HOME") ?: "")).c_str()));
 		gethostname(buff, 100);
@@ -99,7 +113,22 @@ void Response::handleCGI(Request const & req)
 		v.push_back(strdup((std::string("CONTENT_LENGTH") + "=" + Utils::to_str(req.getBodySize())).c_str()));
 		// std::cerr << "CONTENT_LENGTH : " << req.getBodySize() << " " << req.getBody()->tellg() << std::endl;
 		v.push_back(strdup((std::string("CONTENT_TYPE") + "=" + req.getHeader("Content-Type")).c_str()));
+		v.push_back(strdup((std::string("GATEWAY_INTERFACE") + "=CGI/1.1").c_str()));
+		std::cerr << "hostname: " << req.getLocation()->port << std::endl;
+		// std::cerr << "host: " << sock.getHost() << " " << req.getHeader("host").substr(0, req.getHeader("host").find_first_of(':')) << std::endl;
+		v.push_back(strdup((std::string("PATH_INFO") + "=" + req.getRequestTarget().substr(0, n)).c_str()));
+		v.push_back(strdup((std::string("PATH_TRANSLATED") + "=" + filename).c_str()));
+		v.push_back(strdup((std::string("REMOTE_ADDR") + "=" + sock.getHost()).c_str()));
+		v.push_back(strdup((std::string("REMOTE_HOST") + "=" + req.getHeader("host").substr(0, req.getHeader("host").find_first_of(':'))).c_str()));
+		v.push_back(strdup((std::string("SERVER_NAME") + "=" + req.getLocation()->server_name).c_str()));
+		v.push_back(strdup((std::string("SERVER_PORT") + "=" + Utils::to_str(req.getLocation()->port)).c_str()));
+		v.push_back(strdup((std::string("SERVER_PROTOCOL") + "=HTTP/1.1").c_str()));
+		v.push_back(strdup((std::string("SERVER_SOFTWARE") + "=" + SERVER_NAME).c_str()));
 		// std::cerr << "len : " << length << std::endl;
+		for (std::multimap<std::string, std::string>::const_iterator it = req.getHeader().begin(); it != req.getHeader().end(); ++it)
+		{
+			std::cout << "head : " << it->first << " " << it->second << " " <<  req.getServerConfig()->host << "\n";
+		}
 		v.push_back(strdup((std::string("QUERY_STRING") + "=" + req.getRequestTarget().substr(n)).c_str()));
 		v.push_back(strdup((std::string("HTTP_COOKIE") + "=" + req.getHeader("Cookie")).c_str()));
 		v.push_back(strdup((std::string("REDIRECT_STATUS") + "=").c_str()));
@@ -108,8 +137,8 @@ void Response::handleCGI(Request const & req)
 		close(fd_body[1]);
 		dup2(fd[1], 1);
 		dup2(fd_body[0], 0);
-		close(fd[1]);
-		close(fd_body[0]);
+		// close(fd[1]);
+		// close(fd_body[0]);
 		// write(fd[1], "Hello\n", 6);
 		// TODO: check execve return; 
 		if (execve(ar[0], ar, const_cast<char * const *>(v.data())) == -1)
@@ -355,8 +384,8 @@ void	Response::readFile() {
 
 		// buffer_body.resize(1024);
 
-		int pret = poll(&pfd, 1, -1);
-		if (pfd.revents & 0) {
+		int pret = poll(&pfd, 1, 0);
+		if (pfd.revents == 0) {
 			return ;
 		}
 		if (pret == -1) {
@@ -438,7 +467,7 @@ void Response::setErrorPage(const StatusCodeException & e, const Config * locati
 		errPage = new std::fstream();
 		std::string errPath = error_page.find(_status)->second;
 		if (errPath[0] == '/') {
-			errPage->open(errPath);
+			errPage->open(errPath.c_str());
 		} else {
 			std::string filename = location->root;
 
@@ -561,7 +590,7 @@ void Response::set_cgi_body(const Request & request)
 	pollfd pfd = (pollfd){fd_body[1], POLLOUT, 0};
 
 	int pret = poll(&pfd, 1, 0);
-	if (pfd.revents & 0) {
+	if (pfd.revents == 0) {
 		return ;
 	}
 
@@ -576,6 +605,7 @@ void Response::set_cgi_body(const Request & request)
 	// std::cerr  << "sent :" << n << "=>" <<  sent_body << "/" << request.getBodySize() << std::endl;
 	if (n > 0) {
 		ret = write(fd_body[1], buff, n);
+		debug << ret << " " << errno << std::endl;
 		if (ret == 0 || ret == -1) {
 			debug << "2" << std::endl;
 
@@ -587,15 +617,15 @@ void Response::set_cgi_body(const Request & request)
 }
 
 void Response::closeFdBody() {
-	if (fd_body[1] > 2) {
+	if (fd_body[1] != -1) {
 		close(fd_body[1]);
-		fd_body[1] = 0;
+		fd_body[1] = -1;
 	}
 }
 void Response::closeFd() {
-	if (fd[0] > 2) {
+	if (fd[0] != -1) {
 		close(fd[0]);
-		fd[0] = 0;
+		fd[0] = -1;
 	}
 }
 
@@ -627,14 +657,13 @@ void Response::readCgiHeader()
 		int ret = 0;
 		// size_t pos;
 		pollfd pfd = (pollfd){fd[0], POLLIN, 0};
-		int pret = poll(&pfd, 1, -1);
-		if (pfd.revents & 0 || !(pfd.revents & POLLIN)) {
+		int pret = poll(&pfd, 1, 0);
+		if (pfd.revents == 0 || !(pfd.revents & POLLIN)) {
 			return ;
 		}
 		if(pret == -1)
 			error("poll failed");
 		ret = read(fd[0], s, 2049);
-
 		if (ret == -1) {
 			throw StatusCodeException(HttpStatus::InternalServerError, _location);
 		} else if (ret != 0) {
@@ -698,4 +727,22 @@ bool Response::isEndChunkSent() const {
 
 void Response::setEndChunkSent(bool isSent) {
 	_send_end_chunk = isSent;
+}
+
+void Response::setHeaderSent(bool is_sent) {
+	_send_header = is_sent;
+}
+void Response::setBodySent(bool is_sent) {
+	_send_body = is_sent;
+}
+
+bool Response::isHeaderSent() const {
+	return _send_header;
+}
+bool Response::isBodySent() const {
+	return _send_body;
+}
+
+bool Response::isRequestHandled() const {
+	return _is_request_handled;
 }

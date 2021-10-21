@@ -33,6 +33,7 @@ void Request::reset() {
     _http_version = "";
 
     _upload = false;
+    // debug << "RESET" << std::endl;
 }
 Request::Request() {
     reset();
@@ -125,12 +126,14 @@ static const std::string getIndexFile(const Config * location, const std::string
 	throw ListingException(filename, req_taget);
 }
 
-void Request::checkRequestTarget() {
+void Request::updateLocation() {
     _location = getLocationFromRequest(*this, _server);
-
 
 	_filename = getRequestedPath(_request_target, _location, _method);
     _location = getLocationFromRequest(*this, _server);
+}
+
+void Request::checkRequestTarget() {
 
     if (_location->redirect.first != HttpStatus::None) {
 		if (HttpStatus::isRedirection(_location->redirect.first)) {
@@ -153,6 +156,7 @@ void Request::receive(const Socket & connection) {
     ssize_t bytesRead;
     char buffer[BUFFER_SIZE];
 
+    // _bparser.end = false;
     if (_parser.buff.length() == 0) {
         _parser.buff.resize(BUFFER_SIZE);
         bytesRead = connection.recv(buffer, BUFFER_SIZE);
@@ -161,7 +165,7 @@ void Request::receive(const Socket & connection) {
             _parser.buff.resize(0);
             return;
         } else if (bytesRead == -1) {
-            throw StatusCodeException(HttpStatus::None, _location);
+            throw StatusCodeException(HttpStatus::None, NULL);
         }
 
         _parser.buff.setData(buffer, bytesRead);
@@ -173,9 +177,9 @@ void Request::receive(const Socket & connection) {
         _body_size = _body->tellp();
         if (_location->upload) {
             debug << _location->uri << " " << _location->upload << std::endl;
+            // _parser.end = true;
             throw StatusCodeException(HttpStatus::Created, _location);
         }
-
     }
 }
 
@@ -221,17 +225,30 @@ bool Request::parse() {
             _parser.current_stat = _parser.HEADER_KEY;
         } else if ((_parser.current_stat == _parser.HEADER_KEY && _parser.str.empty() && ((_parser.cr && c == '\n') || end))) {
             _parser.current_stat = _parser.BODY;
-            if (_headers.find("Transfer-Encoding") == _headers.end() && _headers.find("Content-Length") == _headers.end()) {
-                _bparser.end = true;
-            }
             if (_headers.find("Host") == _headers.end()) {
                 throw StatusCodeException(HttpStatus::BadRequest, _server);
+            }
+            updateLocation();
+            if (_headers.find("Content-Length") != _headers.end()) {
+                _bparser.len = std::atol(getHeader("Content-Length").c_str());
+                if (_bparser.len == 0) {
+                    _bparser.end = true;
+                }
+                if ((unsigned long)_bparser.len > _location->max_body_size) {
+                    throw StatusCodeException(HttpStatus::PayloadTooLarge, _location);
+                }
+            } else if (_headers.find("Transfer-Encoding") == _headers.end()) {
+                _bparser.end = true;
             }
             checkRequestTarget();
             if (_location->methods.find(_method) == _location->methods.end()) {
                 throw StatusCodeException(HttpStatus::MethodNotAllowed, _location);
             }
-            _parser.end = true;
+            if ((_location->upload && _method == POST) || _bparser.len > (ssize_t)max_size[_parser.BODY]) {
+                openBodyFile();
+            }
+            if (!_location->upload)
+                _parser.end = true;
         } else if ((_parser.current_stat == _parser.HEADER_KEY && (c == ':' || end))) {
             _parser.key = trim(_parser.str);
             _parser.current_stat = _parser.HEADER_VALUE;
@@ -335,15 +352,7 @@ size_t Request::receiveBody() {
         }
     } else if (_headers.find("Content-Length") != _headers.end()) {
         if (isValidDecimal(getHeader("Content-Length"))) {
-            if (_bparser.len == -1) {
-                _bparser.len = std::atol(getHeader("Content-Length").c_str());
-                if ((unsigned long)_bparser.len > _location->max_body_size) {
-                    throw StatusCodeException(HttpStatus::PayloadTooLarge, _location);
-                }
-                if ((_location->upload && _method == POST) || (unsigned long)_bparser.len > max_size[_parser.BODY]) {
-                    openBodyFile();
-                }
-            }
+
             size_t write_len = std::min((size_t)_bparser.len, _parser.buff.length());
             _body->write(_parser.buff.data + _parser.buff.pos, write_len);
             _parser.buff.pos += write_len;
@@ -351,7 +360,6 @@ size_t Request::receiveBody() {
             _bparser.len -= write_len;
             if (_bparser.len == 0) {
                 _bparser.end = true;
-                // return 0;
             }
         } else {
             throw StatusCodeException(HttpStatus::BadRequest, _server);
@@ -373,8 +381,8 @@ void Request::openBodyFile() {
         filename << "/tmp/" << std::setfill('0') << std::setw(10) << file_id++;
     }
 
-    // debug << "body filename: " << filename.str() << std::endl;
-    // debug << "Body: " << body_ss->str() << std::endl;
+    debug << "body filename: " << filename.str() << std::endl;
+    debug << "Body: " << body_ss->str() << std::endl;
 
     _body = new std::fstream(filename.str().c_str(), std::fstream::in | std::fstream::out | std::fstream::trunc);
 
@@ -408,6 +416,9 @@ void Request::setHeaderFinished(bool isFinished) {
     _parser.end = isFinished;
 }
 void Request::setBodyFinished(bool isFinished) {
+    // if (isFinished) {
+    //     reset();
+    // }
     _bparser.end = isFinished;
 }
 

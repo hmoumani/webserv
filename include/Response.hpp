@@ -42,6 +42,10 @@ class Response : public Message
 		std::stringstream		cgiHeader;
 
         bool _send_end_chunk;
+        bool _send_header;
+        bool _send_body;
+
+        bool _is_request_handled;
         // const std::string getRequestedPath(const Request &, const Config *);
     public:
         Buffer buffer_header;
@@ -51,8 +55,8 @@ class Response : public Message
         // Response(Request const &, const Config *);
         ~Response();
         Response &operator= (Response const &);
-        void handleRequest(Request const &);
-        void handleCGI(Request const &);
+        void handleRequest(Request const &, Socket const & sock);
+        void handleCGI(Request const &, Socket const & sock);
         void handleGetRequest(Request const &);
         void handlePostRequest(Request const &);
         void handleDeleteRequest(Request const &);
@@ -73,6 +77,14 @@ class Response : public Message
         void setEndChunkSent(bool isSent);
         void closeFdBody();
         void closeFd();
+
+        void setHeaderSent(bool is_sent);
+        void setBodySent(bool is_sent);
+
+        bool isHeaderSent() const;
+        bool isBodySent() const;
+        
+        bool isRequestHandled() const;
 
 
 };
