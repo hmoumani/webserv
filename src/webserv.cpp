@@ -127,7 +127,6 @@ int main(int argc, char *argv[]) {
 				} while (new_connection->sock.getFD() != -1);
 				if (new_connection->sock.getFD() == -1) {
 					delete new_connection;
-
 				}
 			// new data from a connection
 			} else {
@@ -139,14 +138,14 @@ int main(int argc, char *argv[]) {
 				Response & response = connection.response;
 				if (!(fds[i].revents & POLLHUP)) {
 
-					if (fds[i].revents & POLLIN || request.getBuffer().length() || (response.is_cgi() && !response.isCgiHeaderFinished())) {
+					if (fds[i].revents & POLLIN || request.getBuffer().length() || (response.is_cgi() && !response.isCgiHeaderFinished())
+						|| (response.is_cgi() && !response.isSendingBodyFinished(request))) {
 
 						try {
 							if (fds[i].revents & POLLIN || request.getBuffer().length()) {
 								request.setServerConfig(getConnectionServerConfig(connection.parent.getHost(), connection.parent.getPort(), ""));
 
 								request.receive(connection.sock);
-								debug << std::boolalpha << request.isBodyFinished() << std::endl;
 								if (request.isHeadersFinished() && !response.isRequestHandled()) {
 
 									response.setServerConfig(getConnectionServerConfig(connection.parent.getHost(), connection.parent.getPort(), request.getHeader("Host")));
@@ -211,13 +210,15 @@ int main(int argc, char *argv[]) {
 						}
 						if (response.buffer_body.length() || response.buffer_header.length()) {
 							try {
+						    	debug << "BEFORE Body " << response.buffer_body.length() << "\n";
 								connection.sock.send(response);
+						    	debug << "AFTER Body " << response.buffer_body.length() << "\n";
 							} catch (const StatusCodeException & e) {
 								close = true;
 							}
 						}
 					}
-					if (response.isEndChunkSent() && request.isBodyFinished()) {
+					if (response.isEndChunkSent() && !response.buffer_body.length() && request.isBodyFinished()) {
 						if (request.getHeader("Connection") == "close") {
 							response.setHeader("Connection", "close");
 						}

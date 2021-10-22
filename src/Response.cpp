@@ -114,8 +114,8 @@ void Response::handleCGI(Request const & req, Socket const & sock)
 		// std::cerr << "CONTENT_LENGTH : " << req.getBodySize() << " " << req.getBody()->tellg() << std::endl;
 		v.push_back(strdup((std::string("CONTENT_TYPE") + "=" + req.getHeader("Content-Type")).c_str()));
 		v.push_back(strdup((std::string("GATEWAY_INTERFACE") + "=CGI/1.1").c_str()));
-		std::cerr << "hostname: " << req.getLocation()->port << std::endl;
-		// std::cerr << "host: " << sock.getHost() << " " << req.getHeader("host").substr(0, req.getHeader("host").find_first_of(':')) << std::endl;
+		// std::cerr << "hostname: " << req.getLocation()->port << std::endl;
+		// std::cerr << "filename: " << filename << std::endl;
 		v.push_back(strdup((std::string("PATH_INFO") + "=" + req.getRequestTarget().substr(0, n)).c_str()));
 		v.push_back(strdup((std::string("PATH_TRANSLATED") + "=" + filename).c_str()));
 		v.push_back(strdup((std::string("REMOTE_ADDR") + "=" + sock.getHost()).c_str()));
@@ -125,10 +125,10 @@ void Response::handleCGI(Request const & req, Socket const & sock)
 		v.push_back(strdup((std::string("SERVER_PROTOCOL") + "=HTTP/1.1").c_str()));
 		v.push_back(strdup((std::string("SERVER_SOFTWARE") + "=" + SERVER_NAME).c_str()));
 		// std::cerr << "len : " << length << std::endl;
-		for (std::multimap<std::string, std::string>::const_iterator it = req.getHeader().begin(); it != req.getHeader().end(); ++it)
-		{
-			std::cout << "head : " << it->first << " " << it->second << " " <<  req.getServerConfig()->host << "\n";
-		}
+		// for (std::multimap<std::string, std::string>::const_iterator it = req.getHeader().begin(); it != req.getHeader().end(); ++it)
+		// {
+		// 	std::cout << "head : " << it->first << " " << it->second << " " <<  req.getServerConfig()->host << "\n";
+		// }
 		v.push_back(strdup((std::string("QUERY_STRING") + "=" + req.getRequestTarget().substr(n)).c_str()));
 		v.push_back(strdup((std::string("HTTP_COOKIE") + "=" + req.getHeader("Cookie")).c_str()));
 		v.push_back(strdup((std::string("REDIRECT_STATUS") + "=").c_str()));
@@ -386,15 +386,15 @@ void	Response::readFile() {
 
 		int pret = poll(&pfd, 1, 0);
 		if (pfd.revents == 0) {
+			buffer_body.resize(0);
 			return ;
 		}
 		if (pret == -1) {
 			error("poll failed");
 		}
-
-	
+		// debug << pret << " " << pfd.revents << std::endl;
 		size = read(fd[0], buffer_body.data + 5, buffer_body.size - 7);
-
+		debug << "bs:" << size << "\n" << std::endl;
 		if (size == 0) {
 			// debug << "Close " << fd[0] << std::endl;
 			_is_cgi = false;
@@ -624,6 +624,7 @@ void Response::closeFdBody() {
 }
 void Response::closeFd() {
 	if (fd[0] != -1) {
+		debug << "Close FD: " << fd[0] << std::endl;
 		close(fd[0]);
 		fd[0] = -1;
 	}
@@ -663,7 +664,10 @@ void Response::readCgiHeader()
 		}
 		if(pret == -1)
 			error("poll failed");
+		debug << pret << " " << pfd.revents << std::endl;
 		ret = read(fd[0], s, 2049);
+		debug << ret << "\n" << s << std::endl;
+
 		if (ret == -1) {
 			throw StatusCodeException(HttpStatus::InternalServerError, _location);
 		} else if (ret != 0) {
@@ -683,7 +687,7 @@ void Response::readCgiHeader()
 				_isCgiHeaderFinished = true;
 			}
 		}
-		if (isCgiHeaderFinished()) 
+		if (isCgiHeaderFinished())
 		{
 			// buffer_body.setData(temp.substr(pos).c_str(), temp.substr(pos).length());
 			std::string sub = temp.substr(pos);

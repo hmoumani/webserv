@@ -85,7 +85,7 @@ namespace Utils {
 		if (access( filename.c_str(), F_OK) && !server->upload){
 			throw StatusCodeException(HttpStatus::NotFound, server);
 		}
-		if (!(buffer.st_mode & S_IROTH))
+		if (!access( filename.c_str(), F_OK) && !(buffer.st_mode & S_IROTH))
 			throw StatusCodeException(HttpStatus::Forbidden, server);
 	}
 
