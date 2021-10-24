@@ -1,0 +1,47 @@
+server {
+    listen 0.0.0.0 8080;
+    
+    http_method GET;
+    location / {
+        http_method GET DELETE;
+        root /var/www/html/;
+        index index.html;
+    }
+}
+server {
+    listen 0.0.0.0 8081;
+    
+    server_name hello.com;
+    error_page 404 400 /tmp/error/404.html;
+    http_method GET POST;
+    root /tmp/;
+
+    location / {
+        root /tmp/com/;
+        index index.html;
+        max_body_size 10;
+    }
+
+    location /project_name {
+        index project_name.html;
+    }
+
+    location /school {
+        index school.html;
+    }
+
+    location /students {
+        index students.html;
+    }
+}
+server {
+    listen 0.0.0.0 8081;
+    server_name hello.ma;
+
+    http_method GET POST;
+    location / {    
+        root /tmp/ma/;
+        index index.html;
+        max_body_size 10;
+    }
+}

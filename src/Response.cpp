@@ -86,10 +86,10 @@ void Response::handleRequest(Request const & req, Socket const & sock) {
 
 void Response::handleCGI(Request const & req, Socket const & sock)
 {
-	std::string filename = req.getFilename();
+	std::string file_path = req.getFilePath();
 	char buff[101] = {0};
 	_is_cgi = true;
-	char * const ar[4] = {const_cast<char *>(_location->cgi.c_str()), const_cast<char *>(filename.c_str()), NULL};
+	char * const ar[4] = {const_cast<char *>(_location->cgi.c_str()), const_cast<char *>(file_path.c_str()), NULL};
 	pipe(fd);
 	pipe(fd_body);
 	// req.setBodySize(req.getBody()->tellp());
@@ -107,7 +107,8 @@ void Response::handleCGI(Request const & req, Socket const & sock)
 		v.push_back(strdup((std::string("HOSTNAME") + "=" + buff).c_str()));
 		getlogin_r(buff, 100);
 		v.push_back(strdup((std::string("USER") + "=" + buff).c_str()));
-		v.push_back(strdup((std::string("SCRIPT_FILENAME") + "=" + filename).c_str()));
+		// debug << file_path << std::endl;
+		// v.push_back(strdup((std::string("SCRIPT_NAME") + "=" + req.getFilename()).c_str()));
 		size_t n = req.getRequestTarget().find_first_of('?');
 		n = n == std::string::npos ? req.getRequestTarget().length() : n + 1;
 		v.push_back(strdup((std::string("CONTENT_LENGTH") + "=" + Utils::to_str(req.getBodySize())).c_str()));
@@ -117,9 +118,11 @@ void Response::handleCGI(Request const & req, Socket const & sock)
 		// std::cerr << "hostname: " << req.getLocation()->port << std::endl;
 		// std::cerr << "filename: " << filename << std::endl;
 		v.push_back(strdup((std::string("PATH_INFO") + "=" + req.getRequestTarget().substr(0, n)).c_str()));
-		v.push_back(strdup((std::string("PATH_TRANSLATED") + "=" + filename).c_str()));
+		v.push_back(strdup((std::string("PATH_TRANSLATED") + "=" + file_path).c_str()));
 		v.push_back(strdup((std::string("REMOTE_ADDR") + "=" + sock.getHost()).c_str()));
 		v.push_back(strdup((std::string("REMOTE_HOST") + "=" + req.getHeader("host").substr(0, req.getHeader("host").find_first_of(':'))).c_str()));
+		// debug << req.getHeader("host") << std::endl;
+		// v.push_back(strdup((std::string("HTTP_HOST") + "=" + "").c_str()));
 		v.push_back(strdup((std::string("SERVER_NAME") + "=" + req.getLocation()->server_name).c_str()));
 		v.push_back(strdup((std::string("SERVER_PORT") + "=" + Utils::to_str(req.getLocation()->port)).c_str()));
 		v.push_back(strdup((std::string("SERVER_PROTOCOL") + "=HTTP/1.1").c_str()));
@@ -153,7 +156,7 @@ void Response::handleCGI(Request const & req, Socket const & sock)
 	insert_header("Date", Utils::getDate());
 	insert_header("Server", SERVER_NAME);
 	insert_header("Transfer-Encoding", "chunked");
-	const char * type = MimeTypes::getType(filename.c_str());
+	const char * type = MimeTypes::getType(file_path.c_str());
 	if (type)
 		insert_header("Content-Type", type);
 	insert_header("Connection", "keep-alive");
@@ -162,19 +165,19 @@ void Response::handleCGI(Request const & req, Socket const & sock)
 
 void Response::handleGetRequest(Request const & req)
 {
-	std::string filename = req.getFilename();
+	std::string file_path = req.getFilePath();
 	struct stat fileStat;
 
 	std::fstream * file = new std::fstream();
-	file->open(filename.c_str());
+	file->open(file_path.c_str());
 		delete _body;
 		_body = file;
-	stat (filename.c_str(), &fileStat);
+	stat (file_path.c_str(), &fileStat);
 	insert_header("Date", Utils::getDate());
 	insert_header("Server", SERVER_NAME);
 	insert_header("Last-Modified", Utils::time_last_modification(fileStat));
 	insert_header("Transfer-Encoding", "chunked");
-	const char * type = MimeTypes::getType(filename.c_str());
+	const char * type = MimeTypes::getType(file_path.c_str());
 	if (type)
 		insert_header("Content-Type", type);
 	insert_header("Connection", "keep-alive");
@@ -183,19 +186,19 @@ void Response::handleGetRequest(Request const & req)
 
 void Response::handlePostRequest(Request const & req)
 {
-	std::string filename = req.getFilename();
+	std::string file_path = req.getFilePath();
 	struct stat fileStat;
 
 	std::fstream * file = new std::fstream();
-	file->open(filename.c_str());
+	file->open(file_path.c_str());
 	delete _body;
 	_body = file;
-	stat (filename.c_str(), &fileStat);
+	stat (file_path.c_str(), &fileStat);
 	insert_header("Date", Utils::getDate());
 	insert_header("Server", SERVER_NAME);
 	insert_header("Last-Modified", Utils::time_last_modification(fileStat));
 	insert_header("Transfer-Encoding", "chunked");
-	const char * type = MimeTypes::getType(filename.c_str());
+	const char * type = MimeTypes::getType(file_path.c_str());
 	if (type)
 		insert_header("Content-Type", type);
 	insert_header("Connection", "keep-alive");
@@ -245,7 +248,7 @@ void Response::handleDeleteRequest(Request const & req)
 	DIR * dirp = NULL;
 
 	errno = 0;
-	if (lstat(req.getFilename().c_str(), &st) == -1) {
+	if (lstat(req.getFilePath().c_str(), &st) == -1) {
 		if (errno == ENOTDIR) {
 			throw StatusCodeException(HttpStatus::Conflict, _location);
 		} else {
@@ -257,12 +260,12 @@ void Response::handleDeleteRequest(Request const & req)
 		if (req.getRequestTarget().at(req.getRequestTarget().length() - 1) != '/') {
 			throw StatusCodeException(HttpStatus::Conflict, _location);
 		} else {
-			if ((dirp = opendir(req.getFilename().c_str()))) {
-				deleteDirectoryFiles(dirp, req.getFilename());
+			if ((dirp = opendir(req.getFilePath().c_str()))) {
+				deleteDirectoryFiles(dirp, req.getFilePath());
 			}
 		}
 	} else {
-		remove(req.getFilename().c_str());
+		remove(req.getFilePath().c_str());
 	}
 
 	if (errno) {
@@ -394,7 +397,6 @@ void	Response::readFile() {
 		}
 		// debug << pret << " " << pfd.revents << std::endl;
 		size = read(fd[0], buffer_body.data + 5, buffer_body.size - 7);
-		debug << "bs:" << size << "\n" << std::endl;
 		if (size == 0) {
 			// debug << "Close " << fd[0] << std::endl;
 			_is_cgi = false;
@@ -666,7 +668,6 @@ void Response::readCgiHeader()
 			error("poll failed");
 		debug << pret << " " << pfd.revents << std::endl;
 		ret = read(fd[0], s, 2049);
-		debug << ret << "\n" << s << std::endl;
 
 		if (ret == -1) {
 			throw StatusCodeException(HttpStatus::InternalServerError, _location);
@@ -701,9 +702,14 @@ void Response::readCgiHeader()
 				size_t end = line.find_first_of(':');
 				if (start == std::string::npos || end == std::string::npos)
 					continue ;
-				std::string str = line.substr(line.find_first_of(':') + 2);
+				std::string str = line.substr(line.find_first_of(':') + 1);
 				insert_header(line.substr(0, start), trim(str));
 				// _headers[line.substr(0, start)] = trim(str);
+			}
+			std::multimap<std::string, std::string>::const_iterator it = _headers.find("Status");
+			if (it != _headers.end()) {
+				_status = (HttpStatus::StatusCode)atoi(it->second.c_str());
+	            debug << "Hello " << _status << " " << getHeader("Location") << std::endl;
 			}
 		}
 	}

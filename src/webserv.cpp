@@ -210,14 +210,14 @@ int main(int argc, char *argv[]) {
 						}
 						if (response.buffer_body.length() || response.buffer_header.length()) {
 							try {
-						    	debug << "BEFORE Body " << response.buffer_body.length() << "\n";
 								connection.sock.send(response);
-						    	debug << "AFTER Body " << response.buffer_body.length() << "\n";
 							} catch (const StatusCodeException & e) {
 								close = true;
 							}
 						}
 					}
+					// debug << "R: " << std::boolalpha << response.isEndChunkSent() << " " << !response.buffer_body.length() << " " << request.isBodyFinished() << std::endl;
+
 					if (response.isEndChunkSent() && !response.buffer_body.length() && request.isBodyFinished()) {
 						if (request.getHeader("Connection") == "close") {
 							response.setHeader("Connection", "close");
@@ -227,9 +227,10 @@ int main(int argc, char *argv[]) {
 						}
 						response.closeFd();
 						response.closeFdBody();
-
+						// debug << "RESET\n";
 						connection.request.reset();
 						connection.response.reset();
+						// exit(EXIT_SUCCESS);
 					}
 				} else {
 					debug << "POLLHUP " << connection.sock.getFD() << std::endl;

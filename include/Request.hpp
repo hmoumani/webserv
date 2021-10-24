@@ -40,6 +40,7 @@ private:
     static size_t file_id;
 
     std::string _filename;
+    std::string _file_path;
 
     bool _upload;
 
@@ -59,6 +60,7 @@ public:
     std::string getMethodName() const;
     const std::string & getRequestTarget() const;
     const std::string & getHTTPVersion() const;
+    const std::string & getFilePath() const;
     const std::string & getFilename() const;
     Buffer & getBuffer();
 
