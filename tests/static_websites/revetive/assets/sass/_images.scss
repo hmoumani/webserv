@@ -1,0 +1,72 @@
+.img-place {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  text-align: center;
+  overflow: hidden;
+}
+
+.img-place img {
+  width: auto;
+  max-width: 100%;
+  height: 100%;
+}
+
+.bg-img {
+  position: relative;
+  background-position: center center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.bg-img > * {
+  position: relative;
+  z-index: 10;
+}
+
+.bg-img-parallax {
+  background-attachment: fixed;
+}
+
+.bg-img-overlay-dark {
+  position: relative;
+}
+
+.bg-img-overlay-dark::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.6;
+  background-color: theme-color("dark");
+}
+
+.bg-img-size-contain {
+  background-size: contain;
+}
+
+.bg-img-size-100 {
+  background-size: 100% 100%;
+}
+
+.avatar {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.avatar-img {
+  margin-right: $avatar-size / 4;
+  width: $avatar-size;
+  height: $avatar-size;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.avatar-img img {
+  width: 100%;
+  height: 100%;
+}

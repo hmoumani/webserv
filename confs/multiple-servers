@@ -4,43 +4,52 @@ server {
     http_method GET;
     location / {
         http_method GET DELETE;
-        root /var/www/html/;
+        root tests/multiple_servers/;
         index index.html;
     }
 }
 server {
-    listen 0.0.0.0 8081;
+    listen 0.0.0.0 80;
     
     server_name hello.com;
-    error_page 404 400 /tmp/error/404.html;
+    root tests/multiple_servers/com/;
+
     http_method GET POST;
-    root /tmp/;
+    error_page 404 ./tests/multiple_servers/404.html;
 
     location / {
-        root /tmp/com/;
         index index.html;
         max_body_size 10;
     }
 
     location /project_name {
+        root tests/multiple_servers/com/project_name/;
         index project_name.html;
     }
 
     location /school {
+        root tests/multiple_servers/com/school/;
         index school.html;
     }
 
     location /students {
+        root tests/multiple_servers/com/students/;
         index students.html;
+    }
+
+    location /delete/ {
+        http_method DELETE;
+        root tests/multiple_servers/com/delete/;
+
     }
 }
 server {
-    listen 0.0.0.0 8081;
+    listen 0.0.0.0 80;
     server_name hello.ma;
 
     http_method GET POST;
     location / {    
-        root /tmp/ma/;
+        root tests/multiple_servers/ma/;
         index index.html;
         max_body_size 10;
     }

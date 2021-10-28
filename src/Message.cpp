@@ -6,53 +6,6 @@ Message::Message() {
     reset();
 }
 
-// static void trim(std::string & str) {
-//     int first = str.find_first_not_of(" \n\r\t");
-//     int last = str.find_last_not_of(" \n\r\t");
-
-//     if (first == std::string::npos)
-//         first = 0;
-//     str = str.substr(first, last + 1);
-// }
-
-// Message::Message(const std::string & message) {
-
-//     size_t start = 0;
-//     size_t end ;
-//     int stat = 0;
-
-//     while ((end = message.find('\n', start)) != std::string::npos) {
-//         std::string str = message.substr(start, end - start);
-//         trim(str);
-//         if (stat == 1 && str == "")
-//             ++stat;
-//         start = end + 1;
-//         if (stat == 0) {
-//             _start_line = str;
-//             ++stat;
-//         } else if(stat == 1) {
-//             size_t column_pos = str.find(':');
-//             if (column_pos != std::string::npos) {
-
-//                 std::string key = str.substr(0, column_pos);
-//                 trim(key);
-//                 std::string value = str.substr(column_pos + 1);
-//                 trim(value);
-
-//                 _headers.insert(std::make_pair(key, value));
-//             }
-
-//         }
-//         if (stat == 2) {
-//             break;
-//         }
-//     }
-//     if (start < message.length()) {
-//         _body = message.substr(start);
-//     }
-
-// }
-
 Message::~Message() {
     if (_isBodyFile) {
         ((std::fstream *) _body)->close();
@@ -128,13 +81,10 @@ void Message::reset() {
 size_t Message::getBodySize() const {
     int tmp = _body->tellg();
     int len;
-    // if (!_body_size) {
     _body->seekg(0, _body->end);
     len = _body->tellg();
     _body->seekg(tmp, _body->beg);
     return len;
-    // }
-    // return _body_size;
 }
 
 void Message::setBodySize(size_t size) {

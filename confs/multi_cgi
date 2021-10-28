@@ -1,14 +1,14 @@
 server {
-    listen localhost 8080;
+    listen localhost 8081;
 
     http_method GET POST;
-    root /tmp/bonus/multi_cgi/;
+    root tests/bonus/multi_cgi/;
 
     location / {
         listing on;
     }
     location .php {
-        cgi_pass /goinfre/hmoumani/.brew/opt/php@7.2/bin/php-cgi;
+        cgi_pass /Users/ojoubout/usb/homebrew/bin/php-cgi;
     }
     location .py {
         cgi_pass /usr/bin/python;

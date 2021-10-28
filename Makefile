@@ -10,6 +10,7 @@ $(NAME):$(SRC)
 
 debug:$(SRC)
 	clang++ -g3 -fsanitize=address $(SRC) -Iinclude -o $(NAME)
+
 prof:$(SRC)
 	g++ -pg -g3  -fsanitize=address  $(SRC) -Iinclude -o $(NAME)
 

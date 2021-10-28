@@ -1,12 +1,9 @@
-// #pragma once
-
 #ifndef CONFIG_HPP
 # define CONFIG_HPP
 
 #include <string>
 #include <map>
 #include <vector>
-// #include "Request.hpp"
 #include "StatusCode.hpp"
 #include <iostream>
 #include <fstream>
@@ -16,7 +13,6 @@
 #include <stdexcept>
 #include <unistd.h>
 #include <algorithm>
-// #include "Socket.hpp"
 
 class Socket;
 

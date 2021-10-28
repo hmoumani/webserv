@@ -45,14 +45,11 @@ public:
     void close() const;
     void error(std::string message) const;
     Socket accept() const;
-    // std::string receive() const;
     ssize_t recv(void *buf, size_t n) const;
 
     void send(Response & response) const;
     std::string getHost() const;
     in_port_t getPort() const;
-
-    // void send(std::vector<char> vec) const;
 
 };
 

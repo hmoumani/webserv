@@ -22,23 +22,11 @@ public:
         }
     }
 
-    // Buffer(const Buffer & buff) {
-    //     *this = buff;
-    // }
-
-    // Buffer & operator=(const Buffer & buff) {
-    //     data = buff.data;
-    //     size = buff.size;
-    //     pos = buff.pos;
-    //     return *this;
-    // }
-
     size_t length() const {
         return size - pos;
     }
 
     void resize(size_t new_size) {
-        // std::cerr << "size: " << new_size << std::endl;
         if (size == new_size) {
             pos = 0;
             return ;   
@@ -55,8 +43,8 @@ public:
         char *new_data = new char[new_size];
 
         if (data) {
-            size_t copyn = size > new_size ? new_size : size;
-            std::memcpy(new_data, data, copyn);
+            size_t copyn = length() > new_size ? new_size : length();
+            std::memcpy(new_data, data + pos, copyn);
             delete [] data;
         }
         
@@ -81,6 +69,12 @@ public:
         buff = data + pos;
         pos += size;
         return size <= length() ? size : length();
+    }
+
+    void push(const char * s, size_t len) {
+        size_t buff_len = length();
+        resize(len + buff_len);
+        std::memcpy(data + buff_len, s, len);
     }
 
     char getc() {

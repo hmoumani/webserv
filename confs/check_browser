@@ -1,0 +1,11 @@
+server {
+    listen localhost 8080;
+
+    http_method GET POST;
+    root tests/check_browser/;
+
+    location / {
+        listing on;
+    }
+
+}

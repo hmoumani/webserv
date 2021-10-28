@@ -1,0 +1,33 @@
+.breadcrumb {
+  background-color: theme-color("light");
+}
+
+.breadcrumb-item + .breadcrumb-item {
+  padding-left: 1rem;
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+  content: "\2022";
+  padding-right: 1rem;
+}
+
+.breadcrumb .breadcrumb-item.active {
+  color: darken(theme-color("grey"), 5%);
+}
+
+.breadcrumb .breadcrumb-item + .breadcrumb-item::before {
+  color: darken(theme-color("grey"), 5%);
+}
+
+.breadcrumb-dark .breadcrumb-item a {
+  color: rgba($white, 0.4);
+}
+
+.breadcrumb-dark .breadcrumb-item + .breadcrumb-item::before {
+  display: inline-block;
+  color: rgba($white, 0.8);
+}
+
+.breadcrumb-dark .breadcrumb-item.active {
+  color: rgba($white, 0.8);
+}

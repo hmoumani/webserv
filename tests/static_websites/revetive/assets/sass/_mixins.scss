@@ -1,0 +1,76 @@
+@mixin button-variants($bg, $hover-bg: darken($bg, 5%), $hover-border: darken($bg, 7.5%), $focus-bg: lighten($bg, 5%), $focus-border: lighten($bg, 2.5%), $active-bg: darken($bg, 7.5%), $active-border: darken($bg, 10%)) {
+  color: color-yiq($bg);
+  background-color: $bg;
+  border-color: $bg;
+
+  &:hover {
+    color: color-yiq($hover-bg);
+    background-color: $hover-bg;
+    border-color: $hover-border;
+    box-shadow: $btn-box-shadow rgba($bg, 0.3);
+  }
+
+  &:focus, &.focus {
+    color: color-yiq($focus-bg);
+    background-color: $focus-bg;
+    border-color: $focus-border;
+    box-shadow: none;
+  }
+
+  &:disabled, &.disabled {
+    color: color-yiq($bg);
+    background-color: $bg;
+    border-color: $bg;
+  }
+
+  &:not(:disabled):not(.disabled):active,
+  &:not(:disabled):not(.disabled).active,
+  .show > &.dropdown-toggle {
+    color: color-yiq($active-bg);
+    background-color: $active-bg;
+    border-color: $active-border;
+
+    &:focus {
+      box-shadow: none;
+    }
+  }
+}
+
+
+@mixin button-outline-variants($bg, $active-bg: darken($bg, 5%), $active-border: darken($bg, 7.5%)) {
+  color: $bg;
+  background-color: transparent;
+  border-color: $bg;
+
+  &:hover {
+    color: color-yiq($bg);
+    background-color: $bg;
+    border-color: $bg;
+    box-shadow: $btn-box-shadow rgba($bg, 0.3);
+  }
+
+  &:focus, &.focus {
+    color: $bg;
+    background-color: transparent;
+    border-color: $bg;
+    box-shadow: none;
+  }
+
+  &:disabled, &.disabled {
+    color: color-yiq($bg);
+    background-color: $bg;
+    border-color: $bg;
+  }
+
+  &:not(:disabled):not(.disabled):active,
+  &:not(:disabled):not(.disabled).active,
+  .show > &.dropdown-toggle {
+    color: color-yiq($active-bg);
+    background-color: $active-bg;
+    border-color: $active-border;
+
+    &:focus {
+      box-shadow: none;
+    }
+  }
+}

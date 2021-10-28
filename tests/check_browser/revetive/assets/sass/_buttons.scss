@@ -1,0 +1,22 @@
+// Buttons
+.btn {
+  padding: $btn-padding;
+  transition: $btn-transition;
+}
+
+.btn:focus, .btn.focus {
+  box-shadow: none;
+}
+
+@each $key, $value in $theme-colors {
+  .btn-#{$key} {
+    @include button-variants($value);
+  }
+}
+
+@each $key, $value in $theme-colors {
+  .btn-outline-#{$key} {
+    @include button-outline-variants($value);
+  }
+}
+

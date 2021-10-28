@@ -1,0 +1,37 @@
+server {
+    listen localhost 8080;
+
+    http_method GET;
+    location / {
+        root tests/static_websites/revetive/html/;
+        index index.html;
+    }
+
+    location /assets/ {
+        root tests/static_websites/revetive/assets/;
+    }
+}
+
+server {
+    listen localhost 8081;
+
+    http_method GET;
+    root tests/static_websites/evolve/;
+    index index.html;
+
+    location / {
+    }
+
+}
+
+server {
+    listen localhost 8082;
+
+    http_method GET;
+    root tests/static_websites/xtra/;
+    index index.html;
+
+    location / {
+    }
+
+}

@@ -1,0 +1,9 @@
+server {
+    listen localhost 8080;
+
+    root tests/;
+    http_method GET;
+    location / {
+        index index.html;
+    }
+}

@@ -1,0 +1,209 @@
+
+
+/*--------------------------------------------------------------------- File Name: responsive.css ---------------------------------------------------------------------*/
+
+
+/*------------------------------------------------------------------- 991px x 768px ---------------------------------------------------------------------*/
+
+@media (min-width: 1200px) and (max-width: 1500px) {}
+
+@media (min-width: 992px) and (max-width: 1199px) {
+    .text-bg h1 {
+        font-size: 51px;
+    }
+    .titlepage h2 {
+        font-size: 42px;
+    }
+    .cont h3 {
+        font-size: 40px;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+    .navigation.navbar-dark .navbar-nav .nav-link {
+        padding: 0px 10px;
+    }
+    .text-bg h1 {
+        padding-top: 0px;
+        font-size: 33px;
+        line-height: 22px;
+    }
+    .text-bg span {
+        font-size: 28px;
+        line-height: 39px;
+    }
+    .text-bg p {
+        padding-bottom: 20px;
+    }
+    .banner_main {
+        min-height: 600px;
+    }
+    .titlepage h2 {
+        font-size: 36px;
+    }
+    .discount .titlepage h2 {
+        padding: 0;
+    }
+    .bottom_form .enter {
+        width: 66%;
+    }
+    .cont h3 {
+        font-size: 30px;
+        line-height: 44px;
+    }
+}
+
+@media (min-width: 576px) and (max-width: 767px) {
+    .header {
+        padding: 15px 30px 10px 30px;
+    }
+    .mean-container .mean-bar {
+        margin-top: 0px;
+    }
+    .text-bg h1 {
+        font-size: 39px;
+        line-height: 40px;
+        padding-bottom: 25px;
+    }
+    .banner_main {
+        padding-top: 100px;
+    }
+    .text-img {
+        padding-top: 30px;
+    }
+    .text-bg span {
+        font-size: 30px;
+        line-height: 40px;
+    }
+    .titlepage h2 {
+        font-size: 34px;
+    }
+    .cont h3 {
+        font-size: 34px;
+    }
+    .bottom_form .enter {
+        width: 70%;
+    }
+    .discount .titlepage h2 {
+        padding: 0;
+    }
+    .navigation.navbar {
+        float: right;
+        display: inherit !important;
+        padding: 0;
+        width: 100%;
+    }
+    .navigation .navbar-collapse {
+        background: #000;
+        padding: 20px;
+        margin-top: 52px;
+        position: absolute;
+        width: 100%;
+        margin-right: 20px;
+        z-index: 999;
+    }
+    .navigation.navbar-dark .navbar-nav .nav-link {
+        padding: 10px 0;
+        color: #fff;
+    }
+    .navigation.navbar-dark .navbar-toggler {
+        border: inherit;
+        float: right;
+        padding-top: 6px;
+    }
+    .navigation.navbar-dark .navbar-toggler-icon {
+        background: url(../images/menu_icon.png);
+        background-repeat: no-repeat;
+    }
+    .carousel-control-next-icon,
+    .carousel-control-prev-icon {
+        display: none;
+    }
+}
+
+@media (max-width: 575px) {
+    .header {
+        padding: 30px 0px 15px 0px;
+    }
+    .logo {
+        text-align: center !important;
+        padding-bottom: 6px;
+        float: left;
+    }
+    .text-bg h1 {
+        font-size: 31px;
+        line-height: 40px;
+        padding-bottom: 20px;
+    }
+    .bottom_form .enter {
+        width: 100%;
+    }
+    .sub_btn {
+        margin-left: 0px;
+        margin: 0 auto;
+        margin-top: 0px;
+        margin-top: 30px;
+    }
+    .text-bg span {
+        font-size: 26px;
+        line-height: 36px;
+    }
+    .titlepage h2 {
+        font-size: 29px;
+        line-height: 40px;
+    }
+    .banner_main {
+        padding-top: 100px;
+    }
+    .text-img {
+        padding-top: 30px;
+    }
+    .discount .titlepage h2 {
+        padding: 0;
+    }
+    .cont h3 {
+        font-size: 19px;
+        line-height: 40px;
+    }
+    .navigation.navbar {
+        float: right;
+        display: inherit !important;
+        padding: 0;
+        width: 100%;
+        margin-top: -45px;
+    }
+    .navigation .navbar-collapse {
+        background: #000;
+        padding: 20px;
+        margin-top: 62px;
+        position: absolute;
+        width: 100%;
+        margin-right: 20px;
+        z-index: 999;
+    }
+    .navigation.navbar-dark .navbar-nav .nav-link {
+        padding: 10px 0;
+        color: #fff;
+    }
+    .navigation.navbar-dark .navbar-toggler {
+        float: right;
+        margin-right: 2px;
+        border: inherit;
+    }
+    .testimonial_box {
+        padding: 0px 19px 40px 20px;
+    }
+    .navigation.navbar-dark .navbar-toggler-icon {
+        background: url(../images/menu_icon.png);
+        background-repeat: no-repeat;
+    }
+    .carousel-control-next-icon,
+    .carousel-control-prev-icon {
+        display: none;
+    }
+    .cont_call h3 {
+        font-size: 33px;
+        line-height: 49px;
+    }
+}
+

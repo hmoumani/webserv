@@ -4,9 +4,11 @@
 static Config * curr_server = NULL;
 static Config * curr_location = NULL;
 
+static bool duplicate_listen = false;
+
 enum ParseError {
     UNEXPECTED_SYMBOL, UNEXPECTED_EOF, UNKNOWN_DIRECTIVE, DIRECTIVE_NOT_ALLOWED,
-    DIRECTIVE_HAS_NO_OPENING, DIRECTIVE_NOT_TERMINATED, INVALID_ARGUMENTS,
+    DIRECTIVE_HAS_NO_OPENING, DIRECTIVE_NOT_TERMINATED, INVALID_ARGUMENTS, DUPLICATE_LISTEN,
     DUPLICATE_SERVER_NAME, INVALID_PORT, INVALID_ERROR_CODE, INVALID_STATUS_CODE,
     INVALID_METHOD, DUPLICATE_METHOD, DUPLICATE_LOCATION
 };
@@ -19,10 +21,6 @@ static const std::string directives[] = {
 
 static const size_t server_index = 4;
 static const size_t location_index = 10;
-
-// static char tokens[] = {'{', '}', ';'};
-
-// static char delimiter;
 
 static void error(ParseError err, const std::string arg) {
     if (err == UNEXPECTED_SYMBOL) {
@@ -53,6 +51,8 @@ static void error(ParseError err, const std::string arg) {
         std::cerr << "webserv: duplicate location \"" << arg << "\"" << std::endl;
     } else if (err == DUPLICATE_SERVER_NAME) {
         std::cerr << "webserv: conflicting server name \"" << arg << "\"" << std::endl;
+    } else if (err == DUPLICATE_LISTEN) {
+        std::cerr << "webserv: a duplicate listen \"" << arg << "\"" << std::endl;
     }
     exit(EXIT_FAILURE);
 }
@@ -184,7 +184,7 @@ void conflictingServerName() {
     if (curr_server) {
         for (std::vector<Config>::const_iterator it = servers.begin(); &(*it) != curr_server; ++it) {
             if (it->host == curr_server->host && it->port == curr_server->port && it->server_name == curr_server->server_name) {
-                std::cerr << "webserv: conflicting server name " << it->server_name << " on " << it->host << ":" << it->port << ", ignored" << std::endl;
+                std::cerr << "webserv: conflicting server name '" << it->server_name << "' on " << it->host << ":" << it->port << ", ignored" << std::endl;
                 servers.pop_back();
             }
         }
@@ -228,6 +228,7 @@ static void parse(std::ifstream & file) {
             } else if (curr_server) {
                 conflictingServerName(); // ignore the server if its already exists
                 curr_server = NULL;
+                duplicate_listen = false;
             }
         } else if (directive.size() == 2) {
             if (directive[0] == "server") {
@@ -270,11 +271,20 @@ static void parse(std::ifstream & file) {
             }
         } else if (directive.size() == 4) {
             if (directive[0] == "listen") {
-                config->host = directive[1] == "localhost" ? "127.0.0.1" : directive[1];
-                if (!isnumber(directive[2])) {
-                    error(INVALID_PORT, directive[2]);
+                std::string host = directive[1] == "localhost" ? "127.0.0.1" : directive[1];
+
+                if (duplicate_listen) {
+                    if (config->host == host && config->port == std::atoi(directive[2].c_str())) {
+                        error(DUPLICATE_LISTEN, host + ":" + directive[2]);
+                    }
+                } else {
+                    config->host = host;
+                    if (!isnumber(directive[2])) {
+                        error(INVALID_PORT, directive[2]);
+                    }
+                    config->port = std::atoi(directive[2].c_str());
+                    duplicate_listen = true;
                 }
-                config->port = std::atoi(directive[2].c_str());
             } else {
                 error(INVALID_ARGUMENTS, directive[0]);
             }
@@ -294,7 +304,6 @@ void open_config_file(int argc, char *argv[]) {
     if (argc == 2) {
         file.open(argv[1]);
         if (file.is_open()) {
-            // std::string token;
             parse(file);
             file.close();
             if (servers.empty()) {
@@ -310,8 +319,3 @@ void open_config_file(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 }
-
-// int main(int argc, char *argv[]) {
-//     open_config_file(argc, argv);
-//     return 0;
-// }

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <exception>
-// #include "Config.hpp"
 #include "StatusCode.hpp"
 
 class Config;
@@ -12,7 +11,6 @@ class StatusCodeException : public std::exception {
         std::string _location;
         const Config * _server;
     public:
-        // StatusCodeException(HttpStatus::StatusCode code) : _code(code), _location("") {}
         StatusCodeException(HttpStatus::StatusCode code, std::string const & location, const Config * server) : 
             _code(code), _location(location), _server(server) {}
         StatusCodeException(HttpStatus::StatusCode code, const Config * server) : _code(code), _location(""), _server(server) {}

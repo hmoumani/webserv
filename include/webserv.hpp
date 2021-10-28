@@ -28,10 +28,9 @@
 #include "Response.hpp"
 #include "Config.hpp"
 
-#define MAX_CONNECTION 128
+#define MAX_CONNECTION 9999
 
 typedef int sockid_t;
-// extern std::vector<Config> servers;
 
 
 void error(std::string message);
@@ -42,13 +41,10 @@ struct Connection {
     const Socket & parent;
     Request request;
     Response response;
-    // Connection() {};
     Connection(const Socket & p) : parent(p) {};
-    // Connection(const Connection & c) : sock(c.sock), parent(c.parent), request(c.request), response(c.response) {};
     ~Connection() {};
 };
 
 std::map<int, Connection *> connections;
-// int sockfd;
-// sockaddr_in address;
+
 #endif

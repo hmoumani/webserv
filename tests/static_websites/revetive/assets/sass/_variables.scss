@@ -1,0 +1,103 @@
+$black: #000 !default;
+$white: #fff !default;
+
+$primary: #2F89FC !default;
+$accent: #F52E91 !default;
+$secondary: #6D728B !default;
+$success: #06CC89 !default;
+$info: #0EA1E6 !default;
+$warning: #F68718 !default;
+$danger: #FF4457 !default;
+$grey: #AFB7C1 !default;
+$dark: #33374B !default;
+$light: #F2F4FE !default;
+
+$theme-colors: () !default;
+
+$theme-colors: map-merge(
+  (
+    "primary":        $primary,
+    "accent":         $accent,
+    "secondary":      $secondary,
+    "success":        $success,
+    "info":           $info,
+    "warning":        $warning,
+    "danger":         $danger,
+    "grey":           $grey,
+    "dark":           $dark,
+    "light":          $light,
+  ),
+  $theme-colors
+);
+
+$facebook: #3B5999 !default;
+$twitter: #1DA1F2 !default;
+$google-plus: #DB4437 !default;
+$youtube: #CD201F !default;
+$dribbble: #EA4C89 !default;
+$pinterest: #BD081C !default;
+$slack: #3AAF85 !default;
+$linkedin: #0077B5 !default;
+
+$social-colors: () !default;
+
+$social-colors: map-merge(
+  (
+    "facebook":       $facebook,
+    "twitter":        $twitter,
+    "google-plus":    $google-plus,
+    "youtube":        $youtube,
+    "dribbble":       $dribbble,
+    "pinterest":      $pinterest,
+    "slack":          $slack,
+    "linkedin":       $linkedin,
+  ),
+  $social-colors
+);
+
+
+
+$link-color: #4B74FE !default;
+$link-color-hover: #3463FF !default;
+
+$font-base: "Open Sans", sans-serif;
+$font-weight-base: 400;
+$line-height-base: 1.65;
+
+$text-size: () !default;
+
+$text-size: map-merge(
+ (
+   "text-xs": 12px,
+   "text-sm": 14px,
+   "text-md": 16px,
+   "text-lg": 18px,
+   "text-xl": 21px
+ ),
+ $text-size
+);
+
+
+// The yiq lightness value that determines when the lightness of color changes from "dark" to "light". Acceptable values are between 0 and 255.
+$yiq-contrasted-threshold:  150 !default;
+
+// Customize the light and dark text colors for use in our YIQ color contrast function.
+$yiq-text-dark:             $dark !default;
+$yiq-text-light:            $white !default;
+
+
+
+// Buttons
+$btn-padding: 10px 28px !default;
+$btn-transition: all .2s ease !default;
+$btn-box-shadow: 0 4px 12px !default;
+
+// Breadcrumb
+$breadcrumb-padding-x: 1rem !default;
+
+// Navbar
+$navbar-link-padding-x: 1rem !default;
+
+
+// Images
+$avatar-size: 32px;

@@ -9,7 +9,6 @@
 #include <fstream>
 #include "Config.hpp"
 
-// #include "webserv.hpp"
 class Config;
 struct ci_less : std::binary_function<std::string, std::string, bool>
   {
@@ -56,7 +55,6 @@ public:
 
 	const Config * getLocation() const;
 	void reset();
-	// std::streampos getBodySize() const;
 	void setHeader(const std::string & key, const std::string & val);
 
 };
